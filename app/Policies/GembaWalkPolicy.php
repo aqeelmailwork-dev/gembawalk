@@ -20,7 +20,7 @@ class GembaWalkPolicy
      */
     public function view(User $user, GembaWalk $walk): bool
     {
-        return $walk->user_id === $user->id || $user->can('walks.view_all');
+        return $this->owns($user, $walk) || $user->can('walks.view_all');
     }
 
     /**
@@ -52,7 +52,7 @@ class GembaWalkPolicy
      */
     public function reopen(User $user, GembaWalk $walk): bool
     {
-        return $walk->user_id === $user->id && $walk->isCompleted();
+        return $this->owns($user, $walk) && $walk->isCompleted();
     }
 
     /**
@@ -60,7 +60,7 @@ class GembaWalkPolicy
      */
     public function delete(User $user, GembaWalk $walk): bool
     {
-        return $walk->user_id === $user->id || $user->can('walks.delete_any');
+        return $this->owns($user, $walk) || $user->can('walks.delete_any');
     }
 
     /**
@@ -68,7 +68,7 @@ class GembaWalkPolicy
      */
     public function exportReport(User $user, GembaWalk $walk): bool
     {
-        return ($walk->user_id === $user->id || $user->can('walks.view_all'))
+        return ($this->owns($user, $walk) || $user->can('walks.view_all'))
             && $user->can('reports.export');
     }
 
@@ -77,6 +77,15 @@ class GembaWalkPolicy
      */
     private function canEdit(User $user, GembaWalk $walk): bool
     {
-        return $walk->user_id === $user->id && $walk->isDraft();
+        return $this->owns($user, $walk) && $walk->isDraft();
+    }
+
+    /**
+     * Whether the user owns the walk, comparing the keys as integers so a
+     * numeric-string user_id returned by some MySQL drivers still matches.
+     */
+    private function owns(User $user, GembaWalk $walk): bool
+    {
+        return (int) $walk->user_id === (int) $user->getKey();
     }
 }
