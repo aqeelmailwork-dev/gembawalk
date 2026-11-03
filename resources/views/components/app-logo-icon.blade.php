@@ -1,8 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" {{ $attributes }}>
-    <g fill="currentColor">
-        <circle cx="7" cy="5.8" r="1.7" />
-        <circle cx="11.6" cy="4.4" r="1.8" />
-        <circle cx="16.2" cy="5.6" r="1.5" />
-        <path d="M12 8.6c3 0 5.4 1.2 5.4 2.7v1c0 1.7-1.1 2.9-2.5 4-1 .8-1.7 2-2.9 2s-1.9-1.2-2.9-2c-1.4-1.1-2.5-2.3-2.5-4v-1c0-1.5 2.4-2.7 5.4-2.7Z" />
-    </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" {{ $attributes }}>
+    <path d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+    <path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
 </svg>

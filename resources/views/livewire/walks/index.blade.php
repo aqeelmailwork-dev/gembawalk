@@ -154,7 +154,9 @@ new class extends Component {
         </div>
 
         @if ($this->canCreate())
-            <flux:button href="{{ route('walks.create') }}" icon="plus" variant="primary" class="hidden sm:inline-flex" wire:navigate>New walk</flux:button>
+            <div class="hidden sm:block">
+                <flux:button href="{{ route('walks.create') }}" icon="plus" variant="primary" wire:navigate>New walk</flux:button>
+            </div>
         @endif
     </div>
 
@@ -173,7 +175,7 @@ new class extends Component {
 
             @if ($this->canViewAll())
                 <div class="sm:w-56">
-                    <flux:select wire:model.live="walkedBy" label="Walked by">
+                    <flux:select wire:model.live="walkedBy" aria-label="Walked by">
                         <flux:select.option value="">Everyone</flux:select.option>
 
                         @foreach ($this->walkers() as $walker)
@@ -195,9 +197,9 @@ new class extends Component {
                 >
                     <div class="relative">
                         @if ($cover = $walk->findings->first()?->thumbnail_url)
-                            <img src="{{ $cover }}" alt="" loading="lazy" class="aspect-[4/3] w-full object-cover" />
+                            <img src="{{ $cover }}" alt="" loading="lazy" class="aspect-[16/10] w-full object-cover" />
                         @else
-                            <div class="flex aspect-[4/3] w-full items-center justify-center bg-teal-500/10 dark:bg-teal-400/10">
+                            <div class="flex aspect-[16/10] w-full items-center justify-center bg-teal-500/10 dark:bg-teal-400/10">
                                 <flux:icon name="camera" class="size-10 text-teal-600 dark:text-teal-400" />
                             </div>
                         @endif
@@ -234,7 +236,7 @@ new class extends Component {
                         <div class="mt-auto flex items-center justify-between gap-2 pt-1 text-xs text-zinc-500 dark:text-zinc-400">
                             <span class="inline-flex items-center gap-1.5">
                                 <flux:icon name="photo" variant="mini" class="size-4" />
-                                {{ $walk->findings_count }}
+                                {{ $walk->findings_count }} {{ $walk->findings_count === 1 ? 'photo' : 'photos' }}
                             </span>
 
                             <span class="inline-flex items-center gap-1.5">
@@ -281,7 +283,8 @@ new class extends Component {
             href="{{ route('walks.create') }}"
             wire:navigate
             aria-label="New walk"
-            class="fixed bottom-6 right-6 z-20 inline-flex size-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-lg shadow-teal-600/30 transition hover:bg-teal-500 sm:hidden"
+            class="fixed right-6 z-20 inline-flex size-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-lg shadow-teal-600/30 transition hover:bg-teal-500 sm:hidden"
+            style="bottom: calc(1.5rem + env(safe-area-inset-bottom))"
         >
             <flux:icon name="plus" class="size-6" />
         </a>

@@ -296,7 +296,7 @@ new class extends Component {
     {{-- KPI cards --}}
     <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div
-            class="rounded-xl border p-4 shadow-sm {{ $overdue > 0 ? 'border-red-200 dark:border-red-900' : 'border-zinc-200 dark:border-zinc-700' }} bg-white dark:bg-zinc-900"
+            class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
             aria-label="Walks this month: {{ $walksThisMonth }}"
         >
             <div class="flex items-start justify-between gap-3">
@@ -410,7 +410,7 @@ new class extends Component {
     @else
         {{-- Open actions + charts --}}
         <div class="grid gap-6 lg:grid-cols-3">
-            <div class="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900 lg:col-span-2">
+            <div class="min-w-0 rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900 lg:col-span-2">
                 <div class="flex items-center justify-between border-b border-zinc-200 p-5 dark:border-zinc-700">
                     <h2 class="text-base font-semibold text-zinc-800 dark:text-white">Open actions</h2>
                 </div>
@@ -418,7 +418,7 @@ new class extends Component {
                 @if ($openActionsList->isNotEmpty())
                     <div class="divide-y divide-zinc-100 dark:divide-zinc-800">
                         @foreach ($openActionsList as $finding)
-                            <a href="{{ route('walks.show', $finding->walk) }}" wire:navigate class="flex items-center gap-4 p-4 transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                            <a href="{{ route('walks.show', $finding->walk) }}" wire:navigate class="flex min-w-0 items-center gap-4 p-4 transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
                                 <div class="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-zinc-100 dark:bg-zinc-800">
                                     @if ($finding->thumbnail_url)
                                         <img src="{{ $finding->thumbnail_url }}" alt="Finding photo" class="size-full object-cover" loading="lazy" />
@@ -430,6 +430,16 @@ new class extends Component {
                                 <div class="min-w-0 flex-1">
                                     <p class="truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">{{ $finding->observation }}</p>
                                     <p class="truncate text-xs text-zinc-500 dark:text-zinc-400">{{ $finding->action_required }}</p>
+
+                                    <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400 sm:hidden">
+                                        <span class="truncate">{{ $finding->action_owner ?? '—' }}</span>
+
+                                        @if ($finding->isOverdue())
+                                            <flux:badge color="red" size="sm">Overdue</flux:badge>
+                                        @elseif ($finding->due_on)
+                                            <span>{{ $finding->due_on->format('j M Y') }}</span>
+                                        @endif
+                                    </div>
                                 </div>
 
                                 <div class="hidden shrink-0 text-right sm:block">
@@ -461,7 +471,7 @@ new class extends Component {
                 </div>
             </div>
 
-            <div class="flex flex-col gap-6">
+            <div class="flex min-w-0 flex-col gap-6">
                 <div class="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
                     <h2 class="text-base font-semibold text-zinc-800 dark:text-white">Findings by category</h2>
                     <p class="text-xs text-zinc-400 dark:text-zinc-500">Last 30 days</p>
