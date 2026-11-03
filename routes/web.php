@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\WalkReportPdfController;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 
@@ -29,6 +30,8 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
     Volt::route('walks/create', 'walks.create')->name('walks.create');
     Volt::route('walks/{walk}', 'walks.show')->name('walks.show');
     Volt::route('walks/{walk}/edit', 'walks.edit')->name('walks.edit');
+    Volt::route('walks/{walk}/report', 'walks.report')->name('walks.report');
+    Route::get('walks/{walk}/report.pdf', WalkReportPdfController::class)->name('walks.report.pdf');
 });
 
 require __DIR__.'/auth.php';
