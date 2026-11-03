@@ -1,8 +1,11 @@
 <?php
 
+use App\Enums\Permission;
+use App\Enums\Role;
+use App\Enums\UserStatus;
 use App\Models\User;
+use App\Notifications\NewUserAwaitingApproval;
 use Illuminate\Auth\Events\Registered;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
 use Livewire\Attributes\Layout;
@@ -26,12 +29,32 @@ new #[Layout('components.layouts.auth')] class extends Component {
         ]);
 
         $validated['password'] = Hash::make($validated['password']);
+        $validated['status'] = UserStatus::Pending->value;
 
-        event(new Registered(($user = User::create($validated))));
+        $user = User::create($validated);
 
-        Auth::login($user);
+        $user->assignRole(Role::User->value);
 
-        $this->redirect(route('dashboard', absolute: false), navigate: true);
+        event(new Registered($user));
+
+        $this->notifyAdmins($user);
+
+        $this->redirect(route('approval.pending', absolute: false), navigate: true);
+    }
+
+    /**
+     * Notify every admin (and super admin) that a new user is awaiting approval.
+     */
+    protected function notifyAdmins(User $user): void
+    {
+        $admins = User::permission(Permission::UsersApprove->value)
+            ->get()
+            ->merge(User::role(Role::SuperAdmin->value)->get())
+            ->unique('id');
+
+        foreach ($admins as $admin) {
+            $admin->notify(new NewUserAwaitingApproval($user));
+        }
     }
 }; ?>
 

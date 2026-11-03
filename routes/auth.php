@@ -4,6 +4,9 @@ use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 
+Volt::route('awaiting-approval', 'auth.awaiting-approval')
+    ->name('approval.pending');
+
 Route::middleware('guest')->group(function () {
     Volt::route('login', 'auth.login')
         ->name('login');
@@ -28,6 +31,7 @@ Route::middleware('auth')->group(function () {
         ->name('verification.verify');
 
     Volt::route('confirm-password', 'auth.confirm-password')
+        ->middleware(['auth', 'approved'])
         ->name('password.confirm');
 });
 
