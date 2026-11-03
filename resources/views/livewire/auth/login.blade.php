@@ -36,6 +36,32 @@ new #[Layout('components.layouts.auth')] class extends Component {
             ]);
         }
 
+        $user = Auth::user();
+
+        if ($user->isPending()) {
+            RateLimiter::clear($this->throttleKey());
+            Auth::logout();
+
+            throw ValidationException::withMessages([
+                'email' => 'Your account is awaiting admin approval.',
+            ]);
+        }
+
+        if ($user->isRejected()) {
+            RateLimiter::clear($this->throttleKey());
+            Auth::logout();
+
+            $message = 'Your account request was not approved.';
+
+            if ($user->rejection_reason) {
+                $message .= ' '.$user->rejection_reason;
+            }
+
+            throw ValidationException::withMessages([
+                'email' => $message,
+            ]);
+        }
+
         RateLimiter::clear($this->throttleKey());
         Session::regenerate();
 
@@ -77,6 +103,12 @@ new #[Layout('components.layouts.auth')] class extends Component {
 
     <!-- Session Status -->
     <x-auth-session-status class="text-center" :status="session('status')" />
+
+    @if (session('error'))
+        <div class="text-center text-sm font-medium text-red-600 dark:text-red-400">
+            {{ session('error') }}
+        </div>
+    @endif
 
     <form wire:submit="login" class="flex flex-col gap-6">
         <!-- Email Address -->

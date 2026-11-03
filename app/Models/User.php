@@ -3,15 +3,18 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\UserStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable // implements MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, HasRoles, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -22,6 +25,10 @@ class User extends Authenticatable // implements MustVerifyEmail
         'name',
         'email',
         'password',
+        'status',
+        'approved_at',
+        'approved_by',
+        'rejection_reason',
     ];
 
     /**
@@ -44,7 +51,57 @@ class User extends Authenticatable // implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'status' => UserStatus::class,
+            'approved_at' => 'datetime',
         ];
+    }
+
+    /**
+     * The admin who approved this user.
+     */
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    /**
+     * Whether the user has been approved.
+     */
+    public function isApproved(): bool
+    {
+        return $this->status === UserStatus::Approved;
+    }
+
+    /**
+     * Whether the user is awaiting approval.
+     */
+    public function isPending(): bool
+    {
+        return $this->status === UserStatus::Pending;
+    }
+
+    /**
+     * Whether the user has been rejected.
+     */
+    public function isRejected(): bool
+    {
+        return $this->status === UserStatus::Rejected;
+    }
+
+    /**
+     * Scope a query to only include pending users.
+     */
+    public function scopePending($query)
+    {
+        return $query->where('status', UserStatus::Pending->value);
+    }
+
+    /**
+     * Scope a query to only include approved users.
+     */
+    public function scopeApproved($query)
+    {
+        return $query->where('status', UserStatus::Approved->value);
     }
 
     /**
