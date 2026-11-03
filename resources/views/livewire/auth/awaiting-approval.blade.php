@@ -8,7 +8,9 @@ new #[Layout('components.layouts.auth')] class extends Component {};
 
 <div class="flex flex-col gap-6">
     <div class="flex flex-col items-center gap-4 text-center">
-        <flux:icon.clock class="size-12! text-amber-500 dark:text-amber-400" />
+        <div class="flex size-14 items-center justify-center rounded-full bg-teal-500/10 dark:bg-teal-400/10">
+            <flux:icon.clock class="size-7 text-teal-600 dark:text-teal-400" />
+        </div>
 
         <x-auth-header
             title="Thanks for signing up"
@@ -16,7 +18,7 @@ new #[Layout('components.layouts.auth')] class extends Component {};
         />
     </div>
 
-    <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+    <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
         <p>
             An administrator must approve your account before you can log in.
             We'll send you an email as soon as your account has been reviewed.

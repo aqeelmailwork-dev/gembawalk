@@ -400,31 +400,42 @@ new class extends Component {
     </div>
 
     {{-- Stat strip --}}
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <flux:card>
-            <div class="text-2xl font-semibold text-amber-600 dark:text-amber-400">{{ $stats[UserStatus::Pending->value] }}</div>
-            <div class="mt-1 text-sm font-medium text-zinc-500 dark:text-zinc-400">Pending</div>
-        </flux:card>
+    <div class="grid grid-cols-3 gap-3">
+        <div class="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="flex items-center gap-1.5">
+                <flux:icon name="clock" class="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span class="text-xl font-semibold text-amber-600 dark:text-amber-400">{{ $stats[UserStatus::Pending->value] }}</span>
+            </div>
+            <div class="mt-0.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">Pending</div>
+        </div>
 
-        <flux:card>
-            <div class="text-2xl font-semibold text-green-600 dark:text-green-400">{{ $stats[UserStatus::Approved->value] }}</div>
-            <div class="mt-1 text-sm font-medium text-zinc-500 dark:text-zinc-400">Approved</div>
-        </flux:card>
+        <div class="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="flex items-center gap-1.5">
+                <flux:icon name="check-circle" class="size-4 shrink-0 text-green-600 dark:text-green-400" />
+                <span class="text-xl font-semibold text-green-600 dark:text-green-400">{{ $stats[UserStatus::Approved->value] }}</span>
+            </div>
+            <div class="mt-0.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">Approved</div>
+        </div>
 
-        <flux:card>
-            <div class="text-2xl font-semibold text-red-600 dark:text-red-400">{{ $stats[UserStatus::Rejected->value] }}</div>
-            <div class="mt-1 text-sm font-medium text-zinc-500 dark:text-zinc-400">Rejected</div>
-        </flux:card>
+        <div class="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+            <div class="flex items-center gap-1.5">
+                <flux:icon name="x-circle" class="size-4 shrink-0 text-red-600 dark:text-red-400" />
+                <span class="text-xl font-semibold text-red-600 dark:text-red-400">{{ $stats[UserStatus::Rejected->value] }}</span>
+            </div>
+            <div class="mt-0.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">Rejected</div>
+        </div>
     </div>
 
     {{-- Filters --}}
     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <flux:radio.group wire:model.live="status" variant="segmented">
-            <flux:radio value="pending" label="Pending ({{ $stats[UserStatus::Pending->value] }})" />
-            <flux:radio value="approved" label="Approved ({{ $stats[UserStatus::Approved->value] }})" />
-            <flux:radio value="rejected" label="Rejected ({{ $stats[UserStatus::Rejected->value] }})" />
-            <flux:radio value="all" label="All" />
-        </flux:radio.group>
+        <div class="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <flux:radio.group wire:model.live="status" variant="segmented">
+                <flux:radio value="pending" label="Pending ({{ $stats[UserStatus::Pending->value] }})" />
+                <flux:radio value="approved" label="Approved ({{ $stats[UserStatus::Approved->value] }})" />
+                <flux:radio value="rejected" label="Rejected ({{ $stats[UserStatus::Rejected->value] }})" />
+                <flux:radio value="all" label="All" />
+            </flux:radio.group>
+        </div>
 
         <div class="lg:w-72">
             <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" placeholder="Search name or email" />
@@ -447,7 +458,7 @@ new class extends Component {
     @endif
 
     @if ($users->isNotEmpty())
-        <flux:card class="overflow-hidden">
+        <flux:card class="overflow-hidden p-4">
             {{-- Desktop --}}
             <div class="hidden md:block">
                 <flux:table>
@@ -531,7 +542,7 @@ new class extends Component {
             {{-- Mobile --}}
             <div class="md:hidden">
                 @foreach ($users as $user)
-                    <div class="border-t border-zinc-100 px-6 py-4 first:border-t-0 dark:border-zinc-800">
+                    <div class="border-t border-zinc-100 py-4 first:border-t-0 dark:border-zinc-800">
                         <div class="flex items-start justify-between gap-3">
                             <div class="flex min-w-0 items-center gap-3">
                                 <flux:avatar :initials="$user->initials()" size="sm" />

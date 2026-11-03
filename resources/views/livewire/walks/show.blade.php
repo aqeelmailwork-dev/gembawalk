@@ -385,14 +385,14 @@ new class extends Component {
         <flux:breadcrumbs.item>{{ $walk->title }}</flux:breadcrumbs.item>
     </flux:breadcrumbs>
 
-    <div class="flex items-start justify-between gap-4">
-        <div>
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div class="min-w-0">
             <flux:heading size="xl" level="1">{{ $walk->title }}</flux:heading>
             <flux:subheading size="lg">{{ $walk->area }}</flux:subheading>
         </div>
 
         {{-- Desktop actions --}}
-        <div class="hidden shrink-0 items-center gap-2 sm:flex">
+        <div class="hidden shrink-0 flex-wrap items-center gap-2 sm:flex">
             <flux:button :href="route('walks.report', $walk)" icon="document-chart-bar" :variant="$reportVariant" wire:navigate>{{ $reportLabel }}</flux:button>
 
             @if ($this->canUpdate())
@@ -409,7 +409,7 @@ new class extends Component {
         </div>
 
         {{-- Mobile actions --}}
-        <div class="flex shrink-0 items-center gap-2 sm:hidden">
+        <div class="flex shrink-0 flex-wrap items-center gap-2 sm:hidden">
             @if ($this->canUpdate() || $canReopen)
                 <flux:dropdown position="bottom" align="end">
                     <flux:button variant="ghost" icon="ellipsis-vertical" aria-label="More actions" />
