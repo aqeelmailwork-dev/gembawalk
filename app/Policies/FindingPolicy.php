@@ -37,6 +37,15 @@ class FindingPolicy
      */
     private function canEditWalk(User $user, GembaWalk $walk): bool
     {
-        return $walk->user_id === $user->id && $walk->isDraft();
+        return $this->owns($user, $walk) && $walk->isDraft();
+    }
+
+    /**
+     * Whether the user owns the walk, comparing the keys as integers so a
+     * numeric-string user_id returned by some MySQL drivers still matches.
+     */
+    private function owns(User $user, GembaWalk $walk): bool
+    {
+        return (int) $walk->user_id === (int) $user->getKey();
     }
 }
