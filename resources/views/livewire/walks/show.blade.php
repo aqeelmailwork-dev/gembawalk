@@ -375,6 +375,8 @@ new class extends Component {
     $undescribedFindings = $findings->filter(fn ($f) => blank($f->observation));
     $editing = $editingId ? $findings->firstWhere('id', $editingId) : null;
     $lightboxFinding = $lightboxId ? $findings->firstWhere('id', $lightboxId) : null;
+    $reportLabel = $walk->isCompleted() ? 'Report' : 'Preview report';
+    $reportVariant = $walk->isCompleted() ? 'primary' : 'outline';
 @endphp
 
 <div class="flex flex-col gap-6" x-on:finding-added.window="$wire.editFinding($event.detail.id)">
@@ -389,45 +391,49 @@ new class extends Component {
             <flux:subheading size="lg">{{ $walk->area }}</flux:subheading>
         </div>
 
-        @if ($this->canUpdate() || $canComplete || $canReopen)
-            {{-- Desktop actions --}}
-            <div class="hidden shrink-0 items-center gap-2 sm:flex">
-                @if ($this->canUpdate())
-                    <flux:button href="{{ route('walks.edit', $walk) }}" icon="pencil" wire:navigate>Edit</flux:button>
-                @endif
+        {{-- Desktop actions --}}
+        <div class="hidden shrink-0 items-center gap-2 sm:flex">
+            <flux:button :href="route('walks.report', $walk)" icon="document-chart-bar" :variant="$reportVariant" wire:navigate>{{ $reportLabel }}</flux:button>
 
-                @if ($canReopen)
-                    <flux:button icon="arrow-uturn-left" wire:click="reopenWalk">Reopen</flux:button>
-                @endif
+            @if ($this->canUpdate())
+                <flux:button href="{{ route('walks.edit', $walk) }}" icon="pencil" wire:navigate>Edit</flux:button>
+            @endif
 
-                @if ($canComplete)
-                    <flux:button variant="primary" icon="check-circle" wire:click="openComplete">Complete walk</flux:button>
-                @endif
-            </div>
+            @if ($canReopen)
+                <flux:button icon="arrow-uturn-left" wire:click="reopenWalk">Reopen</flux:button>
+            @endif
 
-            {{-- Mobile actions --}}
-            <div class="flex shrink-0 items-center gap-2 sm:hidden">
-                @if ($this->canUpdate() || $canReopen)
-                    <flux:dropdown position="bottom" align="end">
-                        <flux:button variant="ghost" icon="ellipsis-vertical" aria-label="More actions" />
+            @if ($canComplete)
+                <flux:button variant="primary" icon="check-circle" wire:click="openComplete">Complete walk</flux:button>
+            @endif
+        </div>
 
-                        <flux:menu>
-                            @if ($this->canUpdate())
-                                <flux:menu.item href="{{ route('walks.edit', $walk) }}" icon="pencil" wire:navigate>Edit</flux:menu.item>
-                            @endif
+        {{-- Mobile actions --}}
+        <div class="flex shrink-0 items-center gap-2 sm:hidden">
+            @if ($this->canUpdate() || $canReopen)
+                <flux:dropdown position="bottom" align="end">
+                    <flux:button variant="ghost" icon="ellipsis-vertical" aria-label="More actions" />
 
-                            @if ($canReopen)
-                                <flux:menu.item icon="arrow-uturn-left" wire:click="reopenWalk">Reopen</flux:menu.item>
-                            @endif
-                        </flux:menu>
-                    </flux:dropdown>
-                @endif
+                    <flux:menu>
+                        <flux:menu.item :href="route('walks.report', $walk)" icon="document-chart-bar" wire:navigate>{{ $reportLabel }}</flux:menu.item>
 
-                @if ($canComplete)
-                    <flux:button variant="primary" icon="check-circle" wire:click="openComplete">Complete walk</flux:button>
-                @endif
-            </div>
-        @endif
+                        @if ($this->canUpdate())
+                            <flux:menu.item href="{{ route('walks.edit', $walk) }}" icon="pencil" wire:navigate>Edit</flux:menu.item>
+                        @endif
+
+                        @if ($canReopen)
+                            <flux:menu.item icon="arrow-uturn-left" wire:click="reopenWalk">Reopen</flux:menu.item>
+                        @endif
+                    </flux:menu>
+                </flux:dropdown>
+            @else
+                <flux:button :href="route('walks.report', $walk)" icon="document-chart-bar" :variant="$reportVariant" wire:navigate>{{ $reportLabel }}</flux:button>
+            @endif
+
+            @if ($canComplete)
+                <flux:button variant="primary" icon="check-circle" wire:click="openComplete">Complete walk</flux:button>
+            @endif
+        </div>
     </div>
 
     <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-zinc-500 dark:text-zinc-400">
