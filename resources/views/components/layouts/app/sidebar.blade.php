@@ -14,6 +14,7 @@
             <flux:navlist variant="outline">
                 <flux:navlist.group heading="Platform" class="grid">
                     <flux:navlist.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>Dashboard</flux:navlist.item>
+                    <flux:navlist.item icon="camera" :href="route('walks.index')" :current="request()->routeIs('walks.*')" wire:navigate>Walks</flux:navlist.item>
                 </flux:navlist.group>
 
                 @if (auth()->user()->canAny(['users.approve', 'users.manage', 'roles.manage']) || auth()->user()->hasRole('super_admin'))

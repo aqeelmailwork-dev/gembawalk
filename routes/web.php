@@ -24,4 +24,11 @@ Route::middleware(['auth', 'verified', 'approved'])->prefix('admin')->name('admi
     Volt::route('users', 'admin.users')->middleware('permission:users.approve|users.manage|roles.manage')->name('users');
 });
 
+Route::middleware(['auth', 'verified', 'approved'])->group(function () {
+    Volt::route('walks', 'walks.index')->name('walks.index');
+    Volt::route('walks/create', 'walks.create')->name('walks.create');
+    Volt::route('walks/{walk}', 'walks.show')->name('walks.show');
+    Volt::route('walks/{walk}/edit', 'walks.edit')->name('walks.edit');
+});
+
 require __DIR__.'/auth.php';
