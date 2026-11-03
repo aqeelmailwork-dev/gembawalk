@@ -21,6 +21,7 @@ Route::middleware(['auth', 'approved'])->group(function () {
 
 Route::middleware(['auth', 'verified', 'approved'])->prefix('admin')->name('admin.')->group(function () {
     Volt::route('access', 'admin.access')->middleware('role:super_admin')->name('access');
+    Volt::route('users', 'admin.users')->middleware('permission:users.approve|users.manage|roles.manage')->name('users');
 });
 
 require __DIR__.'/auth.php';
