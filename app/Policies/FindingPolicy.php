@@ -33,6 +33,15 @@ class FindingPolicy
     }
 
     /**
+     * Owners may flip a finding's action status on any of their walks (draft or
+     * completed), and users who can see all walks may do the same on any walk.
+     */
+    public function updateAction(User $user, Finding $finding): bool
+    {
+        return $this->owns($user, $finding->walk) || $user->can('walks.view_all');
+    }
+
+    /**
      * Whether the user may edit the walk the finding belongs to.
      */
     private function canEditWalk(User $user, GembaWalk $walk): bool
