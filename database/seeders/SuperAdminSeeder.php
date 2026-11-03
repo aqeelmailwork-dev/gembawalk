@@ -15,16 +15,22 @@ class SuperAdminSeeder extends Seeder
      */
     public function run(): void
     {
-        $user = User::updateOrCreate(
-            ['email' => env('SUPER_ADMIN_EMAIL', 'superadmin@gembawalk.test')],
-            [
-                'name' => 'Super Admin',
-                'password' => Hash::make(env('SUPER_ADMIN_PASSWORD', 'password')),
-                'status' => UserStatus::Approved->value,
-                'approved_at' => now(),
-                'email_verified_at' => now(),
-            ],
-        );
+        $user = User::firstOrNew([
+            'email' => env('SUPER_ADMIN_EMAIL', 'superadmin@gembawalk.test'),
+        ]);
+
+        // The password is only set when the user is first created, so re-seeding
+        // never resets a password that has been changed since.
+        if (! $user->exists) {
+            $user->password = Hash::make(env('SUPER_ADMIN_PASSWORD', 'password'));
+            $user->email_verified_at = now();
+            $user->approved_at = now();
+        }
+
+        $user->name = 'Super Admin';
+        $user->status = UserStatus::Approved->value;
+
+        $user->save();
 
         $user->syncRoles([Role::SuperAdmin->value]);
     }
