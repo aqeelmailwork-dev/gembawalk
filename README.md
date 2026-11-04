@@ -120,6 +120,68 @@ superadmin@gembawalk.test / password
 
 Connect the phone to the same Wi-Fi and open `http://<your-computer's-IP>`. Some browsers only open the camera directly over HTTPS or `localhost`. Over plain HTTP, the **From gallery** button still works and lets you take a new photo.
 
+## Deploying to a home server
+
+This is for running GembaWalk on a home server (an Ubuntu box, for example) with Docker Compose, so phones on your Wi-Fi can reach it. You need **Docker** with the **Compose plugin**, and **git**.
+
+```bash
+git clone https://github.com/aqeelmailwork-dev/gembawalk.git
+cd gembawalk
+cp .env.production.example .env
+```
+
+Edit `.env` and at least set the passwords, `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PASSWORD`, and `APP_KEY` (next step).
+
+Generate an app key and paste it into `APP_KEY` in `.env`:
+
+```bash
+docker compose -f compose.production.yaml run --rm --no-deps app php artisan key:generate --show
+```
+
+Build and start everything. The first build installs PHP dependencies and compiles the front end, so give it a few minutes:
+
+```bash
+docker compose -f compose.production.yaml up -d --build
+```
+
+Seed the database once (creates the roles, permissions and your super admin):
+
+```bash
+docker compose -f compose.production.yaml exec app php artisan db:seed --force
+```
+
+On first start the app runs `migrate --force`, creates the `public/storage` link and caches config, routes and views automatically.
+
+| What | Address |
+|---|---|
+| The app | http://<server-ip>:8090 |
+| Mailpit (emails the app sends) | http://<server-ip>:8091 |
+
+### HTTPS from phones
+
+Browsers usually only open the camera over HTTPS. Tailscale serve gives you that without opening any ports:
+
+```bash
+sudo tailscale serve --bg --https=8443 8090
+```
+
+Then open `https://<machine>.<tailnet>.ts.net:8443` on the phone (tailnet only — not public). Tailscale terminates TLS and forwards to `http://127.0.0.1:8090`; the app trusts those forwarded headers, so links and assets keep the right scheme and host. Plain `http://<server-ip>:8090` on the LAN keeps working too. Do not use `tailscale funnel` unless you want it public.
+
+### Updating
+
+```bash
+git pull
+docker compose -f compose.production.yaml up -d --build
+```
+
+### Backups
+
+Everything worth keeping lives in two named volumes: `gembawalk-prod_gembawalk-mysql` (the database) and `gembawalk-prod_gembawalk-storage` (photos and Livewire temporary uploads). Back them up by running a throwaway container against each volume, for example:
+
+```bash
+docker run --rm -v gembawalk-prod_gembawalk-mysql:/data -v "$(pwd)":/backup alpine tar czf /backup/mysql.tgz -C /data .
+```
+
 ## Project structure
 
 | Path | What's there |
