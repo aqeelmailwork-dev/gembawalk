@@ -1,0 +1,82 @@
+name: gembawalk-prod
+
+services:
+    app:
+        build:
+            context: .
+            dockerfile: docker/production/Dockerfile
+        image: gembawalk:latest
+        restart: unless-stopped
+        env_file:
+            - ${GEMBAWALK_ENV_FILE:-.env}
+        ports:
+            - '${APP_PORT:-8090}:8080'
+        volumes:
+            - gembawalk-storage:/var/www/html/storage/app
+        depends_on:
+            mysql:
+                condition: service_healthy
+        healthcheck:
+            test:
+                - CMD
+                - curl
+                - -fsS
+                - http://localhost:8080/up
+            interval: 30s
+            timeout: 5s
+            retries: 3
+            start_period: 30s
+
+    queue:
+        image: gembawalk:latest
+        command:
+            - php
+            - /var/www/html/artisan
+            - queue:work
+            - --tries=3
+            - --sleep=3
+        restart: unless-stopped
+        env_file:
+            - ${GEMBAWALK_ENV_FILE:-.env}
+        environment:
+            # A queue worker never runs the web autorun (migrate/cache/storage:link).
+            AUTORUN_ENABLED: 'false'
+        volumes:
+            - gembawalk-storage:/var/www/html/storage/app
+        depends_on:
+            app:
+                condition: service_started
+            mysql:
+                condition: service_healthy
+        healthcheck:
+            disable: true
+
+    mysql:
+        image: mysql:8.4
+        restart: unless-stopped
+        environment:
+            MYSQL_DATABASE: '${DB_DATABASE}'
+            MYSQL_USER: '${DB_USERNAME}'
+            MYSQL_PASSWORD: '${DB_PASSWORD}'
+            MYSQL_ROOT_PASSWORD: '${DB_ROOT_PASSWORD}'
+        volumes:
+            - gembawalk-mysql:/var/lib/mysql
+        healthcheck:
+            test:
+                - CMD-SHELL
+                - mysqladmin ping -h localhost -uroot -p"$$MYSQL_ROOT_PASSWORD" --silent
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 30s
+
+    mailpit:
+        image: axllent/mailpit:latest
+        restart: unless-stopped
+        ports:
+            # SMTP (1025) is internal only; only the web UI is exposed.
+            - '${MAILPIT_UI_PORT:-8091}:8025'
+
+volumes:
+    gembawalk-storage:
+    gembawalk-mysql:
