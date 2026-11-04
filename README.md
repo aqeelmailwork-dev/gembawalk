@@ -135,8 +135,10 @@ Edit `.env` and at least set the passwords, `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PA
 Generate an app key and paste it into `APP_KEY` in `.env`:
 
 ```bash
-docker compose -f compose.production.yaml run --rm --no-deps app php artisan key:generate --show
+docker compose -f compose.production.yaml run --rm --no-deps -e AUTORUN_ENABLED=false app php artisan key:generate --show
 ```
+
+The first run builds the image, so it takes a few minutes; copy the printed `base64:...` value into `APP_KEY`.
 
 Build and start everything. The first build installs PHP dependencies and compiles the front end, so give it a few minutes:
 
