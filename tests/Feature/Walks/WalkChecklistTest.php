@@ -6,6 +6,7 @@ use App\Enums\Role;
 use App\Enums\WalkStatus;
 use App\Enums\YesNo;
 use App\Models\ChecklistAnswer;
+use App\Models\ChecklistAnswerPhoto;
 use App\Models\ChecklistCategory;
 use App\Models\ChecklistItem;
 use App\Models\Finding;
@@ -133,58 +134,137 @@ class WalkChecklistTest extends TestCase
         $this->assertSame('Overflowing by the printer', $this->answerFor($this->bins)->note);
     }
 
-    public function test_photo_on_a_no_answer_becomes_a_linked_finding_and_can_be_replaced(): void
+    /**
+     * @return array<int, UploadedFile>
+     */
+    private function images(int $count): array
     {
-        $component = $this->asOwner()
-            ->call('answer', $this->bins->id, 'no')
-            ->set("notes.{$this->bins->id}", 'Overflowing')
-            ->set("photos.{$this->bins->id}", UploadedFile::fake()->image('bins.jpg', 1200, 900))
-            ->assertHasNoErrors()
-            ->assertDispatched('finding-added');
-
-        $answer = $this->answerFor($this->bins);
-        $finding = $answer->finding;
-
-        $this->assertNotNull($finding);
-        $this->assertSame($this->walk->id, $finding->gemba_walk_id);
-        $this->assertSame('Office: Bins emptied? - No. Overflowing', $finding->observation);
-        Storage::disk('public')->assertExists($finding->photo_path);
-
-        $oldPhoto = $finding->photo_path;
-
-        $component->set("photos.{$this->bins->id}", UploadedFile::fake()->image('bins2.jpg', 1200, 900));
-
-        $this->assertSame(1, Finding::count());
-        Storage::disk('public')->assertMissing($oldPhoto);
-        Storage::disk('public')->assertExists($finding->fresh()->photo_path);
+        return array_map(fn ($i) => UploadedFile::fake()->image("photo{$i}.jpg", 1200, 900), range(1, $count));
     }
 
-    public function test_photo_is_refused_for_a_yes_answer_and_for_non_images(): void
+    public function test_several_photos_can_be_added_to_a_check_without_creating_findings(): void
     {
-        $this->asOwner()
-            ->call('answer', $this->clean->id, 'yes')
-            ->set("photos.{$this->clean->id}", UploadedFile::fake()->image('ok.jpg'))
-            ->assertStatus(422);
-
-        $this->asOwner()
+        $component = $this->asOwner()
+            ->call('toggleCategory', $this->office->id)
             ->call('answer', $this->bins->id, 'no')
-            ->set("photos.{$this->bins->id}", UploadedFile::fake()->create('photo.heic', 100, 'image/heic'))
-            ->assertHasErrors("photos.{$this->bins->id}");
+            ->set("photos.{$this->bins->id}", $this->images(3))
+            ->assertHasNoErrors()
+            ->assertSee('Add more');
 
+        $photos = $this->answerFor($this->bins)->photos;
+
+        $this->assertCount(3, $photos);
+        $this->assertSame([1, 2, 3], $photos->pluck('position')->all());
+        foreach ($photos as $photo) {
+            Storage::disk('public')->assertExists([$photo->photo_path, $photo->thumbnail_path]);
+        }
+
+        $component->set("photos.{$this->bins->id}", $this->images(2));
+
+        $this->assertSame([1, 2, 3, 4, 5], $this->answerFor($this->bins)->photos->pluck('position')->all());
         $this->assertSame(0, Finding::count());
     }
 
-    public function test_deleting_the_linked_finding_keeps_the_answer(): void
+    public function test_yes_answers_can_have_photos_too(): void
+    {
+        $this->asOwner()
+            ->call('answer', $this->clean->id, 'yes')
+            ->set("photos.{$this->clean->id}", $this->images(2))
+            ->assertHasNoErrors();
+
+        $this->assertCount(2, $this->answerFor($this->clean)->photos);
+    }
+
+    public function test_photo_limit_per_check_is_enforced(): void
+    {
+        $component = $this->asOwner()
+            ->call('toggleCategory', $this->office->id)
+            ->call('answer', $this->bins->id, 'no')
+            ->set("photos.{$this->bins->id}", $this->images(11))
+            ->assertHasErrors("photos.{$this->bins->id}");
+
+        $this->assertCount(0, $this->answerFor($this->bins)->photos);
+
+        $component->set("photos.{$this->bins->id}", $this->images(8))->assertHasNoErrors();
+        $component->set("photos.{$this->bins->id}", $this->images(3))
+            ->assertHasErrors("photos.{$this->bins->id}")
+            ->assertSee('You can add 2 more photos');
+
+        $this->assertCount(8, $this->answerFor($this->bins)->photos);
+    }
+
+    public function test_photos_need_an_answer_and_must_be_images(): void
+    {
+        $this->asOwner()
+            ->set("photos.{$this->bins->id}", $this->images(1))
+            ->assertNotFound();
+
+        $this->asOwner()
+            ->call('answer', $this->bins->id, 'no')
+            ->set("photos.{$this->bins->id}", [UploadedFile::fake()->create('photo.heic', 100, 'image/heic')])
+            ->assertHasErrors("photos.{$this->bins->id}.0");
+
+        $this->assertSame(0, ChecklistAnswerPhoto::count());
+    }
+
+    public function test_owner_can_remove_a_photo_and_its_files_go(): void
+    {
+        $component = $this->asOwner()
+            ->call('answer', $this->bins->id, 'no')
+            ->set("photos.{$this->bins->id}", $this->images(2));
+
+        $photo = $this->answerFor($this->bins)->photos->first();
+
+        $component->call('removePhoto', $photo->id);
+
+        $this->assertModelMissing($photo);
+        Storage::disk('public')->assertMissing([$photo->photo_path, $photo->thumbnail_path]);
+        $this->assertCount(1, $this->answerFor($this->bins)->photos);
+    }
+
+    public function test_photos_from_another_walk_or_by_another_user_cannot_be_removed(): void
     {
         $this->asOwner()
             ->call('answer', $this->bins->id, 'no')
-            ->set("photos.{$this->bins->id}", UploadedFile::fake()->image('bins.jpg'));
+            ->set("photos.{$this->bins->id}", $this->images(1));
+        $photo = $this->answerFor($this->bins)->photos->first();
 
-        $this->answerFor($this->bins)->finding->delete();
+        $otherWalk = GembaWalk::factory()->for($this->owner)->create();
+        Volt::actingAs($this->owner)->test('walks.checklist', ['walk' => $otherWalk])
+            ->call('removePhoto', $photo->id)
+            ->assertNotFound();
 
-        $answer = $this->answerFor($this->bins);
-        $this->assertNull($answer->finding_id);
-        $this->assertSame(YesNo::No, $answer->answer);
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::Admin->value);
+        Volt::actingAs($admin)->test('walks.checklist', ['walk' => $this->walk])
+            ->call('removePhoto', $photo->id)
+            ->assertForbidden();
+
+        $this->assertModelExists($photo);
+    }
+
+    public function test_clearing_an_answer_or_deleting_the_walk_removes_photo_files(): void
+    {
+        $component = $this->asOwner()
+            ->call('answer', $this->bins->id, 'no')
+            ->set("photos.{$this->bins->id}", $this->images(2))
+            ->call('answer', $this->clean->id, 'yes')
+            ->set("photos.{$this->clean->id}", $this->images(1));
+
+        $binsPaths = $this->answerFor($this->bins)->photos->flatMap(fn ($p) => [$p->photo_path, $p->thumbnail_path])->all();
+        $cleanPaths = $this->answerFor($this->clean)->photos->flatMap(fn ($p) => [$p->photo_path, $p->thumbnail_path])->all();
+
+        // Switching No -> Yes keeps the photos; tapping the selected answer clears it.
+        $component->call('answer', $this->bins->id, 'yes');
+        $this->assertCount(2, $this->answerFor($this->bins)->photos);
+
+        $component->call('answer', $this->bins->id, 'yes');
+        $this->assertNull($this->answerFor($this->bins));
+        Storage::disk('public')->assertMissing($binsPaths);
+
+        $this->walk->delete();
+        $this->assertSame(0, ChecklistAnswerPhoto::count());
+        Storage::disk('public')->assertMissing($cleanPaths);
     }
 
     public function test_admin_sees_recorded_answers_read_only_even_after_checks_change(): void

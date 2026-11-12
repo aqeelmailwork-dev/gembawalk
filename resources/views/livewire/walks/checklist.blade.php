@@ -1,19 +1,16 @@
 <?php
 
-use App\Enums\ActionStatus;
-use App\Enums\FindingCategory;
-use App\Enums\Severity;
 use App\Enums\YesNo;
 use App\Models\ChecklistAnswer;
+use App\Models\ChecklistAnswerPhoto;
 use App\Models\ChecklistCategory;
 use App\Models\ChecklistItem;
-use App\Models\Finding;
 use App\Models\GembaWalk;
 use App\Services\FindingPhotoProcessor;
 use Flux\Flux;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Locked;
-use Livewire\Attributes\On;
 use Livewire\Volt\Component;
 use Livewire\WithFileUploads;
 
@@ -33,9 +30,9 @@ new class extends Component {
     public array $notes = [];
 
     /**
-     * Photo uploads for "No" answers, keyed by checklist item id.
+     * Pending photo uploads, keyed by checklist item id (each a list of files).
      *
-     * @var array<int, mixed>
+     * @var array<int, array<int, mixed>>
      */
     public array $photos = [];
 
@@ -44,19 +41,14 @@ new class extends Component {
         $this->authorize('view', $walk);
 
         $this->walk = $walk;
+
+        // A walk started from a category opens straight onto its checks.
+        $this->openCategoryId = $walk->checklist_category_id;
+
         $this->notes = $walk->checklistAnswers()->pluck('note', 'checklist_item_id')
             ->filter(fn ($note, $itemId) => $itemId !== null)
             ->map(fn ($note) => (string) $note)
             ->all();
-    }
-
-    /**
-     * Re-render when the parent page deletes a finding that an answer may link to.
-     */
-    #[On('finding-deleted')]
-    public function refreshAfterFindingDeleted(): void
-    {
-        //
     }
 
     /**
@@ -68,20 +60,22 @@ new class extends Component {
     }
 
     /**
-     * This walk's answers, keyed by checklist item id.
+     * This walk's answers with their photos, keyed by checklist item id.
      */
     public function answers(): Collection
     {
-        return $this->walk->checklistAnswers()->with('finding')->get()->keyBy('checklist_item_id');
+        return $this->walk->checklistAnswers()->with('photos')->get()->keyBy('checklist_item_id');
     }
 
     /**
-     * Active categories with their active checks, for answering.
+     * Active categories with their active checks, for answering. A walk started
+     * for one category only offers that category.
      */
     public function categories(): Collection
     {
         return ChecklistCategory::query()
             ->active()
+            ->when($this->walk->checklist_category_id, fn ($query, $categoryId) => $query->whereKey($categoryId))
             ->ordered()
             ->with('activeItems')
             ->get()
@@ -95,7 +89,8 @@ new class extends Component {
     }
 
     /**
-     * Record Yes or No for a check. Tapping the selected answer again clears it.
+     * Record Yes or No for a check. Tapping the selected answer again clears it
+     * (and deletes its photos; the button asks first when there are any).
      */
     public function answer(int $itemId, string $value): void
     {
@@ -110,7 +105,7 @@ new class extends Component {
 
         if ($existing && $existing->answer === $answer) {
             $existing->delete();
-            unset($this->notes[$item->id]);
+            unset($this->notes[$item->id], $this->photos[$item->id]);
 
             return;
         }
@@ -136,71 +131,84 @@ new class extends Component {
 
         $this->validate(["notes.{$itemId}" => ['nullable', 'string', 'max:1000']], attributes: ["notes.{$itemId}" => 'note']);
 
-        $answer = $this->walk->checklistAnswers()->where('checklist_item_id', (int) $itemId)->first();
-
-        if (! $answer) {
-            return;
-        }
-
         $note = trim((string) $value);
-        $answer->update(['note' => $note === '' ? null : $note]);
 
-        // Keep the linked finding's description in step while it still uses our wording.
-        if ($answer->finding && str_starts_with((string) $answer->finding->observation, $this->observationPrefix($answer))) {
-            $answer->finding->update(['observation' => $this->observationFor($answer)]);
-        }
+        $this->walk->checklistAnswers()
+            ->where('checklist_item_id', (int) $itemId)
+            ->update(['note' => $note === '' ? null : $note]);
     }
 
     /**
-     * Turn a photo attached to a "No" answer into a finding (or replace its photo).
+     * Store photos picked for an answered check (camera or gallery, several at once).
      */
-    public function updatedPhotos(mixed $file, string|int $itemId): void
+    public function updatedPhotos(mixed $value, string|int $key): void
     {
-        $itemId = (int) $itemId;
+        // Livewire reports either "5" (the whole list) or "5.0" (one file).
+        $itemId = (int) explode('.', (string) $key)[0];
 
-        $this->authorize('create', [Finding::class, $this->walk]);
-
-        $this->validate(
-            ["photos.{$itemId}" => FindingPhotoProcessor::rules()['photo']],
-            ["photos.{$itemId}.mimes" => FindingPhotoProcessor::messages()['photo.mimes']],
-            ["photos.{$itemId}" => 'photo'],
-        );
+        $this->authorize('update', $this->walk);
 
         $answer = $this->walk->checklistAnswers()->where('checklist_item_id', $itemId)->firstOrFail();
-        abort_unless($answer->isNo(), 422);
+
+        $files = array_values(array_filter((array) ($this->photos[$itemId] ?? [])));
+
+        $this->validate(
+            [
+                "photos.{$itemId}" => ['required', 'array'],
+                "photos.{$itemId}.*" => FindingPhotoProcessor::rules()['photo'],
+            ],
+            ["photos.{$itemId}.*.mimes" => FindingPhotoProcessor::messages()['photo.mimes']],
+            ["photos.{$itemId}" => 'photos', "photos.{$itemId}.*" => 'photo'],
+        );
+
+        $room = ChecklistAnswerPhoto::MAX_PER_ANSWER - $answer->photos()->count();
+
+        if (count($files) > $room) {
+            unset($this->photos[$itemId]);
+            $this->addError("photos.{$itemId}", $room > 0
+                ? "You can add {$room} more ".Str::plural('photo', $room).' to this check (up to '.ChecklistAnswerPhoto::MAX_PER_ANSWER.').'
+                : 'This check already has the maximum of '.ChecklistAnswerPhoto::MAX_PER_ANSWER.' photos.');
+
+            return;
+        }
 
         $processor = app(FindingPhotoProcessor::class);
+        $position = (int) $answer->photos()->max('position');
 
-        if ($answer->finding) {
-            $processor->replace($answer->finding, $this->photos[$itemId]);
-            $finding = $answer->finding;
-        } else {
-            $paths = $processor->store($this->photos[$itemId], $this->walk);
+        foreach ($files as $file) {
+            $paths = $processor->store($file, $this->walk);
 
-            $finding = new Finding;
-            $finding->gemba_walk_id = $this->walk->id;
-            $finding->photo_path = $paths['photo_path'];
-            $finding->thumbnail_path = $paths['thumbnail_path'];
-            $finding->category = FindingCategory::Other;
-            $finding->severity = Severity::Medium;
-            $finding->action_status = ActionStatus::Open;
-            $finding->observation = $this->observationFor($answer);
-            $finding->position = (int) $this->walk->findings()->max('position') + 1;
-            $finding->save();
-
-            $answer->finding()->associate($finding)->save();
+            $photo = new ChecklistAnswerPhoto;
+            $photo->checklist_answer_id = $answer->id;
+            $photo->photo_path = $paths['photo_path'];
+            $photo->thumbnail_path = $paths['thumbnail_path'];
+            $photo->position = ++$position;
+            $photo->save();
         }
 
         unset($this->photos[$itemId]);
 
-        Flux::toast(variant: 'success', text: 'Photo added to this check');
-
-        // The walk page listens for this, refreshes its findings and opens the editor.
-        $this->dispatch('finding-added', id: $finding->id);
+        Flux::toast(variant: 'success', text: count($files).' '.Str::plural('photo', count($files)).' added');
     }
 
     /**
-     * A check that can still be answered: active, in an active category.
+     * Remove one photo from a check on this walk.
+     */
+    public function removePhoto(int $photoId): void
+    {
+        $this->authorize('update', $this->walk);
+
+        ChecklistAnswerPhoto::query()
+            ->whereHas('answer', fn ($query) => $query->where('gemba_walk_id', $this->walk->id))
+            ->findOrFail($photoId)
+            ->delete();
+
+        Flux::toast(variant: 'success', text: 'Photo removed');
+    }
+
+    /**
+     * A check that can still be answered: active, in an active category, and in
+     * the walk's own category when it was started for one.
      */
     private function answerableItem(int $itemId): ChecklistItem
     {
@@ -208,17 +216,8 @@ new class extends Component {
             ->with('category')
             ->where('is_active', true)
             ->whereHas('category', fn ($query) => $query->where('is_active', true))
+            ->when($this->walk->checklist_category_id, fn ($query, $categoryId) => $query->where('checklist_category_id', $categoryId))
             ->findOrFail($itemId);
-    }
-
-    private function observationPrefix(ChecklistAnswer $answer): string
-    {
-        return "{$answer->category_name}: {$answer->question} - No";
-    }
-
-    private function observationFor(ChecklistAnswer $answer): string
-    {
-        return $this->observationPrefix($answer).($answer->note ? ". {$answer->note}" : '');
     }
 }; ?>
 
@@ -301,8 +300,13 @@ new class extends Component {
                         @if ($isOpen)
                             <ul class="space-y-1 px-4 pb-3">
                                 @foreach ($section['rows'] as $row)
-                                    @php($rowAnswer = $row['answer'])
-                                    <li wire:key="row-{{ $section['id'] }}-{{ $row['itemId'] ?? $loop->index }}" class="rounded-lg py-2">
+                                    @php
+                                        $rowAnswer = $row['answer'];
+                                        $itemId = $row['itemId'];
+                                        $rowPhotos = $rowAnswer?->photos ?? collect();
+                                        $canAddMore = $rowPhotos->count() < \App\Models\ChecklistAnswerPhoto::MAX_PER_ANSWER;
+                                    @endphp
+                                    <li wire:key="row-{{ $section['id'] }}-{{ $itemId ?? $loop->index }}" class="py-2">
                                         <div class="flex items-center gap-3">
                                             <span class="min-w-0 flex-1 text-sm text-zinc-800 dark:text-zinc-100">{{ $row['question'] }}</span>
 
@@ -311,7 +315,8 @@ new class extends Component {
                                                     @foreach ([YesNo::Yes, YesNo::No] as $option)
                                                         @php($selected = $rowAnswer?->answer === $option)
                                                         <button type="button"
-                                                            wire:click="answer({{ $row['itemId'] }}, '{{ $option->value }}')"
+                                                            wire:click="answer({{ $itemId }}, '{{ $option->value }}')"
+                                                            @if ($selected && $rowPhotos->isNotEmpty()) wire:confirm="Clear this answer? Its {{ $rowPhotos->count() }} {{ Str::plural('photo', $rowPhotos->count()) }} will be deleted." @endif
                                                             aria-pressed="{{ $selected ? 'true' : 'false' }}"
                                                             @class([
                                                                 'min-h-10 w-16 rounded-lg border text-sm font-medium transition',
@@ -327,29 +332,58 @@ new class extends Component {
                                             @endif
                                         </div>
 
-                                        {{-- Extra detail for failed checks --}}
-                                        @if ($rowAnswer?->isNo())
-                                            <div class="mt-2 flex items-start gap-3 rounded-lg bg-red-50 p-2.5 dark:bg-red-500/10">
-                                                @if ($rowAnswer->finding?->thumbnail_url)
-                                                    <img src="{{ $rowAnswer->finding->thumbnail_url }}" alt="" class="size-12 shrink-0 rounded-md object-cover">
-                                                @endif
-
-                                                <div class="min-w-0 flex-1 space-y-2">
+                                        {{-- Note (failed checks) and photos (any answered check) --}}
+                                        @if ($rowAnswer && ($rowAnswer->isNo() || $rowPhotos->isNotEmpty() || $canAnswer))
+                                            <div @class([
+                                                'mt-2 space-y-2',
+                                                'rounded-lg bg-red-50 p-2.5 dark:bg-red-500/10' => $rowAnswer->isNo(),
+                                            ])>
+                                                @if ($rowAnswer->isNo())
                                                     @if ($canAnswer)
-                                                        <flux:input size="sm" wire:model.blur="notes.{{ $row['itemId'] }}" placeholder="What's wrong? (optional)" />
-                                                        @error("notes.{$row['itemId']}") <p class="text-xs text-red-600">{{ $message }}</p> @enderror
-
-                                                        <label class="inline-flex cursor-pointer items-center gap-1.5 text-sm font-medium text-red-700 hover:text-red-800 dark:text-red-300">
-                                                            <flux:icon name="camera" class="size-4" />
-                                                            <span wire:loading.remove wire:target="photos.{{ $row['itemId'] }}">{{ $rowAnswer->finding ? 'Replace photo' : 'Add photo' }}</span>
-                                                            <span wire:loading wire:target="photos.{{ $row['itemId'] }}">Uploading&hellip;</span>
-                                                            <input type="file" class="sr-only" accept="image/*" capture="environment" wire:model="photos.{{ $row['itemId'] }}">
-                                                        </label>
-                                                        @error("photos.{$row['itemId']}") <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+                                                        <flux:input size="sm" wire:model.blur="notes.{{ $itemId }}" placeholder="What's wrong? (optional)" />
+                                                        @error("notes.{$itemId}") <p class="text-xs text-red-600">{{ $message }}</p> @enderror
                                                     @elseif ($rowAnswer->note)
                                                         <p class="text-sm text-red-800 dark:text-red-200">{{ $rowAnswer->note }}</p>
                                                     @endif
-                                                </div>
+                                                @endif
+
+                                                @if ($rowPhotos->isNotEmpty() || $canAnswer)
+                                                    <div class="flex flex-wrap items-center gap-2">
+                                                        @foreach ($rowPhotos as $photo)
+                                                            <div wire:key="photo-{{ $photo->id }}" class="relative">
+                                                                <a href="{{ $photo->photo_url }}" target="_blank" rel="noopener">
+                                                                    <img src="{{ $photo->thumbnail_url }}" alt="Photo {{ $loop->iteration }} for {{ $row['question'] }}" class="size-16 rounded-md object-cover ring-1 ring-black/5 dark:ring-white/10" loading="lazy">
+                                                                </a>
+                                                                @if ($canAnswer)
+                                                                    <button type="button" wire:click="removePhoto({{ $photo->id }})" wire:confirm="Remove this photo?" aria-label="Remove photo"
+                                                                        class="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-zinc-900/80 text-white shadow hover:bg-red-600">
+                                                                        <flux:icon name="x-mark" class="size-3" />
+                                                                    </button>
+                                                                @endif
+                                                            </div>
+                                                        @endforeach
+
+                                                        @if ($canAnswer && $canAddMore)
+                                                            <label @class([
+                                                                'flex size-16 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-md border-2 border-dashed text-[11px] font-medium transition',
+                                                                'border-red-300 text-red-700 hover:bg-red-100 dark:border-red-500/40 dark:text-red-300 dark:hover:bg-red-500/10' => $rowAnswer->isNo(),
+                                                                'border-zinc-300 text-zinc-500 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-400 dark:hover:bg-zinc-800' => ! $rowAnswer->isNo(),
+                                                            ])>
+                                                                <span wire:loading.remove wire:target="photos.{{ $itemId }}" class="flex flex-col items-center gap-0.5">
+                                                                    <flux:icon name="camera" class="size-5" />
+                                                                    {{ $rowPhotos->isEmpty() ? 'Add photos' : 'Add more' }}
+                                                                </span>
+                                                                <span wire:loading wire:target="photos.{{ $itemId }}">
+                                                                    <flux:icon.loading class="size-5" />
+                                                                </span>
+                                                                {{-- No "capture" attribute: phones then offer camera or gallery, and allow several. --}}
+                                                                <input type="file" class="sr-only" accept="image/*" multiple wire:model="photos.{{ $itemId }}">
+                                                            </label>
+                                                        @endif
+                                                    </div>
+                                                    @error("photos.{$itemId}") <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+                                                    @error("photos.{$itemId}.*") <p class="text-xs text-red-600">{{ $message }}</p> @enderror
+                                                @endif
                                             </div>
                                         @endif
                                     </li>

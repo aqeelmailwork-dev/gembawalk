@@ -18,7 +18,6 @@
 
 @php
     $walk = $report->walk;
-    $totals = $report->totals();
 
     $categoryHex = [
         'safety' => '#ef4444',
@@ -51,72 +50,70 @@
 
 <div style="padding: 4px 28px 28px;">
 
-    {{-- KPI row --}}
-    <table width="100%" cellspacing="0" cellpadding="0" style="margin-top: 18px;">
-        <tr>
-            <td width="25%" style="border: 1px solid #e4e4e7; padding: 12px 14px;">
-                <div style="font-size: 22px; font-weight: bold; color: #18181b;">{{ $totals['findings'] }}</div>
-                <div style="font-size: 9px; color: #71717a;">Findings</div>
-            </td>
-            <td width="25%" style="border: 1px solid #e4e4e7; padding: 12px 14px;">
-                <div style="font-size: 22px; font-weight: bold; color: {{ $totals['high'] > 0 ? '#dc2626' : '#18181b' }};">{{ $totals['high'] }}</div>
-                <div style="font-size: 9px; color: #71717a;">High severity</div>
-            </td>
-            <td width="25%" style="border: 1px solid #e4e4e7; padding: 12px 14px;">
-                <div style="font-size: 22px; font-weight: bold; color: {{ $totals['open_actions'] > 0 ? '#d97706' : '#18181b' }};">{{ $totals['open_actions'] }}</div>
-                <div style="font-size: 9px; color: #71717a;">Open actions</div>
-            </td>
-            <td width="25%" style="border: 1px solid #e4e4e7; padding: 12px 14px;">
-                <div style="font-size: 22px; font-weight: bold; color: {{ $totals['overdue'] > 0 ? '#dc2626' : '#18181b' }};">{{ $totals['overdue'] }}</div>
-                <div style="font-size: 9px; color: #71717a;">Overdue</div>
-            </td>
-        </tr>
-    </table>
+    {{-- Checklist results: every check with its answer, note and photos --}}
+    @php
+        $checklist = $report->checklistTotals();
+        $checklistSections = $report->checklistSections();
+        $notChecked = $checklistSections->sum('unanswered');
+    @endphp
+    @if ($checklistSections->isNotEmpty())
+        <h2>Checklist results &nbsp;<span style="color: #27272a;">{{ $checklist['score'] }}% passed</span> <span class="muted" style="font-size: 10px; font-weight: normal;">({{ $checklist['yes'] }} Yes, {{ $checklist['no'] }} No{{ $notChecked ? ", {$notChecked} not checked" : '' }})</span></h2>
 
-    {{-- Checklist results --}}
-    @php($checklist = $report->checklistTotals())
-    @if ($checklist['answered'] > 0)
-        <div style="page-break-inside: avoid;">
-            <h2>Checklist results &nbsp;<span style="color: #27272a;">{{ $checklist['score'] }}% passed</span> <span class="muted" style="font-size: 10px; font-weight: normal;">({{ $checklist['yes'] }} Yes, {{ $checklist['no'] }} No)</span></h2>
-            <table width="100%" cellspacing="0" cellpadding="3">
-                @foreach ($report->checklistByCategory() as $group)
+        @foreach ($checklistSections as $section)
+            <div style="page-break-inside: avoid; margin-top: 10px;">
+                <table width="100%" cellspacing="0" cellpadding="2">
                     <tr>
-                        <td width="28%" style="font-size: 10px;">{{ $group['name'] }}</td>
-                        <td width="56%">
-                            <div style="width: 100%; height: 8px; background: #ef4444; border-radius: 4px;">
-                                <div style="width: {{ $group['score'] }}%; height: 8px; background: #22c55e; border-radius: 4px;"></div>
+                        <td width="40%" style="font-size: 11px; font-weight: bold;">{{ $section['name'] }}</td>
+                        <td width="44%">
+                            <div style="width: 100%; height: 8px; background: {{ $section['answered'] ? '#ef4444' : '#e4e4e7' }}; border-radius: 4px;">
+                                @if ($section['answered'])
+                                    <div style="width: {{ $section['score'] }}%; height: 8px; background: #22c55e; border-radius: 4px;"></div>
+                                @endif
                             </div>
                         </td>
-                        <td width="16%" align="right" style="font-size: 10px;">{{ $group['yes'] }}/{{ $group['answered'] }} &middot; {{ $group['score'] }}%</td>
+                        <td width="16%" align="right" style="font-size: 10px;">{{ $section['yes'] }}/{{ $section['answered'] }} &middot; {{ $section['score'] }}%</td>
+                    </tr>
+                </table>
+            </div>
+
+            <table width="100%" cellspacing="0" cellpadding="5" style="margin-top: 4px;">
+                @foreach ($section['rows'] as $row)
+                    @php($answer = $row['answer'])
+                    <tr style="page-break-inside: avoid;">
+                        <td valign="top" style="font-size: 10px; border-bottom: 1px solid #f4f4f5; {{ $answer?->isNo() ? 'background: #fef2f2;' : '' }}">
+                            <strong>{{ $row['question'] }}</strong>
+                            @if ($answer?->note)
+                                <div class="muted" style="margin-top: 2px;">{{ $answer->note }}</div>
+                            @endif
+                            @if ($answer && $answer->photos->isNotEmpty())
+                                {{-- A table, not inline images: dompdf otherwise draws the photos over the note above. --}}
+                                <table cellspacing="0" cellpadding="0" style="margin-top: 6px;">
+                                    @foreach ($answer->photos->chunk(4) as $photoRow)
+                                        <tr>
+                                            @foreach ($photoRow as $photo)
+                                                @php($thumb = $report->thumbnailDataUri($photo))
+                                                <td style="padding: 0 6px 6px 0;">
+                                                    @if ($thumb)
+                                                        <img src="{{ $thumb }}" style="width: 120px; height: 90px; border-radius: 3px;">
+                                                    @endif
+                                                </td>
+                                            @endforeach
+                                        </tr>
+                                    @endforeach
+                                </table>
+                            @endif
+                        </td>
+                        <td width="70" valign="top" align="right" style="border-bottom: 1px solid #f4f4f5; {{ $answer?->isNo() ? 'background: #fef2f2;' : '' }}">
+                            @if ($answer)
+                                <span class="badge" style="background: {{ $answer->isNo() ? '#ef4444' : '#22c55e' }};">{{ $answer->answer->label() }}</span>
+                            @else
+                                <span class="badge" style="background: #a1a1aa;">Not checked</span>
+                            @endif
+                        </td>
                     </tr>
                 @endforeach
             </table>
-        </div>
-
-        @if ($report->checklistFailures()->isNotEmpty())
-            <div style="page-break-inside: avoid;">
-                <div style="font-size: 11px; font-weight: bold; margin: 12px 0 4px;">Needs attention</div>
-                <table width="100%" cellspacing="0" cellpadding="4">
-                    @foreach ($report->checklistFailures() as $failure)
-                        @php($thumb = $failure->finding ? $report->thumbnailDataUri($failure->finding) : null)
-                        <tr style="page-break-inside: avoid; border-bottom: 1px solid #f4f4f5;">
-                            <td width="52" valign="top">
-                                @if ($thumb)
-                                    <img src="{{ $thumb }}" style="width: 48px; height: 36px; border-radius: 3px;">
-                                @endif
-                            </td>
-                            <td valign="top" style="font-size: 10px;">
-                                <span class="muted">{{ $failure->category_name }}:</span> {{ $failure->question }}
-                                @if ($failure->note)
-                                    <div class="muted" style="margin-top: 2px;">{{ $failure->note }}</div>
-                                @endif
-                            </td>
-                            <td width="30" valign="top" align="right"><span class="badge" style="background: #ef4444;">No</span></td>
-                        </tr>
-                    @endforeach
-                </table>
-            </div>
-        @endif
+        @endforeach
     @endif
 
     @if ($report->findings->isNotEmpty())
@@ -283,8 +280,6 @@
                 <div class="muted" style="font-size: 10px;">No actions were recorded.</div>
             @endif
         </div>
-    @else
-        <div class="muted" style="margin-top: 20px; font-size: 10px;">No findings were recorded on this walk.</div>
     @endif
 </div>
 

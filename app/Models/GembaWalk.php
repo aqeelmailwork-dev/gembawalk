@@ -60,6 +60,14 @@ class GembaWalk extends Model
     }
 
     /**
+     * The checklist category this walk was started for, if any.
+     */
+    public function checklistCategory(): BelongsTo
+    {
+        return $this->belongsTo(ChecklistCategory::class);
+    }
+
+    /**
      * The yes/no checklist answers given during the walk.
      */
     public function checklistAnswers(): HasMany
@@ -113,6 +121,7 @@ class GembaWalk extends Model
     {
         static::deleting(function (GembaWalk $walk) {
             $walk->findings->each->delete();
+            $walk->checklistAnswers->each->delete();
         });
     }
 

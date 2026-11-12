@@ -7,6 +7,7 @@ use App\Enums\FindingCategory;
 use App\Enums\Severity;
 use App\Enums\YesNo;
 use App\Models\ChecklistAnswer;
+use App\Models\ChecklistAnswerPhoto;
 use App\Models\Finding;
 use App\Models\GembaWalk;
 use Illuminate\Support\Collection;
@@ -27,7 +28,7 @@ class WalkReport
 
     public function __construct(GembaWalk $walk)
     {
-        $walk->loadMissing(['findings', 'user', 'checklistAnswers.category', 'checklistAnswers.item', 'checklistAnswers.finding']);
+        $walk->loadMissing(['findings', 'user', 'checklistAnswers.category', 'checklistAnswers.item', 'checklistAnswers.photos', 'checklistCategory.activeItems']);
 
         $this->walk = $walk;
 
@@ -66,6 +67,51 @@ class WalkReport
         return $this->checklistAnswers
             ->groupBy('category_name')
             ->map(fn (Collection $answers, string $name) => ['name' => $name, 'answers' => $answers->values()] + $this->checklistScore($answers))
+            ->values();
+    }
+
+    /**
+     * Every check on the walk, grouped by category, for the full checklist report.
+     * Each row carries its answer (with note and photos), or null when the walker
+     * skipped a check of the category the walk was started for.
+     *
+     * @return Collection<int, array{name: string, answered: int, yes: int, no: int, score: int, unanswered: int, rows: Collection<int, array{question: string, answer: ?ChecklistAnswer}>}>
+     */
+    public function checklistSections(): Collection
+    {
+        $sections = $this->checklistByCategory()->keyBy('name')->map(fn (array $group) => $group + [
+            'unanswered' => 0,
+            'rows' => $group['answers']->map(fn (ChecklistAnswer $answer) => ['question' => $answer->question, 'answer' => $answer]),
+        ]);
+
+        $category = $this->walk->checklistCategory;
+
+        if ($category) {
+            $answersByItem = $this->checklistAnswers->keyBy('checklist_item_id');
+
+            // The category's checks in admin order, then any answers whose check was since removed.
+            $rows = $category->activeItems->map(fn ($item) => [
+                'question' => $answersByItem->get($item->id)?->question ?? $item->question,
+                'answer' => $answersByItem->get($item->id),
+            ]);
+
+            $listedItemIds = $category->activeItems->pluck('id');
+            $extra = $this->checklistAnswers
+                ->filter(fn (ChecklistAnswer $answer) => $answer->category_name === $category->name && ! $listedItemIds->contains($answer->checklist_item_id))
+                ->map(fn (ChecklistAnswer $answer) => ['question' => $answer->question, 'answer' => $answer]);
+
+            $rows = $rows->concat($extra)->values();
+
+            $own = $sections->get($category->name, ['name' => $category->name] + $this->checklistScore(collect()));
+            $own['rows'] = $rows;
+            $own['unanswered'] = $rows->whereNull('answer')->count();
+
+            // The walk's own category leads.
+            $sections = collect([$category->name => $own])->merge($sections->except($category->name));
+        }
+
+        return $sections
+            ->map(fn (array $section) => collect($section)->except('answers')->all())
             ->values();
     }
 
@@ -205,22 +251,24 @@ class WalkReport
     }
 
     /**
-     * Base64 data URI for a finding thumbnail, or null when it cannot be
-     * embedded (missing file, unreadable bytes, or not a genuine image).
+     * Base64 data URI for a finding or checklist photo thumbnail, or null when it
+     * cannot be embedded (missing file, unreadable bytes, or not a genuine image).
      */
-    public function thumbnailDataUri(Finding $finding): ?string
+    public function thumbnailDataUri(Finding|ChecklistAnswerPhoto $photo): ?string
     {
-        if (! $finding->thumbnail_path) {
+        $path = $photo->thumbnail_path;
+
+        if (! $path) {
             return null;
         }
 
         $disk = Storage::disk('public');
 
-        if (! $disk->exists($finding->thumbnail_path)) {
+        if (! $disk->exists($path)) {
             return null;
         }
 
-        $contents = $disk->get($finding->thumbnail_path);
+        $contents = $disk->get($path);
 
         if (! is_string($contents) || $contents === '') {
             return null;

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\YesNo;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ChecklistAnswer extends Model
 {
@@ -55,11 +56,22 @@ class ChecklistAnswer extends Model
     }
 
     /**
-     * The photo finding attached to a "No" answer, if any.
+     * Evidence photos attached to this answer, in the order they were added.
      */
-    public function finding(): BelongsTo
+    public function photos(): HasMany
     {
-        return $this->belongsTo(Finding::class);
+        return $this->hasMany(ChecklistAnswerPhoto::class)->orderBy('position')->orderBy('id');
+    }
+
+    /**
+     * Delete photos through Eloquent so their files are removed too (a database
+     * cascade alone would leave the images on disk).
+     */
+    protected static function booted(): void
+    {
+        static::deleting(function (ChecklistAnswer $answer) {
+            $answer->photos->each->delete();
+        });
     }
 
     /**
