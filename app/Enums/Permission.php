@@ -10,6 +10,7 @@ enum Permission: string
     case WalksViewAll = 'walks.view_all';
     case WalksDeleteAny = 'walks.delete_any';
     case ReportsExport = 'reports.export';
+    case ChecklistsManage = 'checklists.manage';
 
     /**
      * Human-readable label for the permission.
@@ -23,6 +24,7 @@ enum Permission: string
             self::WalksViewAll => 'View all walks',
             self::WalksDeleteAny => 'Delete any walk',
             self::ReportsExport => 'Export reports',
+            self::ChecklistsManage => 'Manage checklists',
         };
     }
 
@@ -38,6 +40,7 @@ enum Permission: string
             self::WalksViewAll => 'See every user\'s walks',
             self::WalksDeleteAny => 'Delete anyone\'s walk',
             self::ReportsExport => 'Download PDF reports',
+            self::ChecklistsManage => 'Create and edit checklist categories and their yes/no checks',
         };
     }
 }

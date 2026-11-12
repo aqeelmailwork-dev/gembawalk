@@ -44,6 +44,7 @@ class PermissionsTest extends TestCase
             Permission::UsersManage->value,
             Permission::WalksViewAll->value,
             Permission::ReportsExport->value,
+            Permission::ChecklistsManage->value,
         ];
 
         $actual = $admin->getAllPermissions()->pluck('name')->sort()->values()->toArray();

@@ -37,6 +37,7 @@ new class extends Component {
                 str_starts_with($permission->value, 'roles.') => 'Users',
                 str_starts_with($permission->value, 'walks.') => 'Walks',
                 str_starts_with($permission->value, 'reports.') => 'Reports',
+                str_starts_with($permission->value, 'checklists.') => 'Checklists',
                 default => 'Other',
             };
 

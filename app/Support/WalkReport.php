@@ -5,6 +5,8 @@ namespace App\Support;
 use App\Enums\ActionStatus;
 use App\Enums\FindingCategory;
 use App\Enums\Severity;
+use App\Enums\YesNo;
+use App\Models\ChecklistAnswer;
 use App\Models\Finding;
 use App\Models\GembaWalk;
 use Illuminate\Support\Collection;
@@ -21,15 +23,58 @@ class WalkReport
 
     public readonly Collection $findings;
 
+    public readonly Collection $checklistAnswers;
+
     public function __construct(GembaWalk $walk)
     {
-        $walk->loadMissing(['findings', 'user']);
+        $walk->loadMissing(['findings', 'user', 'checklistAnswers.category', 'checklistAnswers.item', 'checklistAnswers.finding']);
 
         $this->walk = $walk;
 
         $this->findings = $walk->findings
             ->sortBy([['position', 'asc'], ['id', 'asc']])
             ->values();
+
+        // Admin's category/check order; answers whose check was since deleted go last.
+        $this->checklistAnswers = $walk->checklistAnswers
+            ->sortBy([
+                fn (ChecklistAnswer $a, ChecklistAnswer $b) => ($a->category?->position ?? PHP_INT_MAX) <=> ($b->category?->position ?? PHP_INT_MAX),
+                fn (ChecklistAnswer $a, ChecklistAnswer $b) => $a->category_name <=> $b->category_name,
+                fn (ChecklistAnswer $a, ChecklistAnswer $b) => ($a->item?->position ?? PHP_INT_MAX) <=> ($b->item?->position ?? PHP_INT_MAX),
+                fn (ChecklistAnswer $a, ChecklistAnswer $b) => $a->id <=> $b->id,
+            ])
+            ->values();
+    }
+
+    /**
+     * Overall checklist result for the KPI line.
+     *
+     * @return array{answered: int, yes: int, no: int, score: int}
+     */
+    public function checklistTotals(): array
+    {
+        return $this->checklistScore($this->checklistAnswers);
+    }
+
+    /**
+     * Checklist answers grouped by category, each with its own score.
+     *
+     * @return Collection<int, array{name: string, answered: int, yes: int, no: int, score: int, answers: Collection}>
+     */
+    public function checklistByCategory(): Collection
+    {
+        return $this->checklistAnswers
+            ->groupBy('category_name')
+            ->map(fn (Collection $answers, string $name) => ['name' => $name, 'answers' => $answers->values()] + $this->checklistScore($answers))
+            ->values();
+    }
+
+    /**
+     * Only the failed checks, for the "needs attention" list.
+     */
+    public function checklistFailures(): Collection
+    {
+        return $this->checklistAnswers->filter(fn (ChecklistAnswer $answer) => $answer->isNo())->values();
     }
 
     /**
@@ -188,6 +233,24 @@ class WalkReport
         }
 
         return 'data:' . $info['mime'] . ';base64,' . base64_encode($contents);
+    }
+
+    /**
+     * Yes/No counts and the share answered Yes, as a whole percentage.
+     *
+     * @return array{answered: int, yes: int, no: int, score: int}
+     */
+    private function checklistScore(Collection $answers): array
+    {
+        $yes = $answers->filter(fn (ChecklistAnswer $answer) => $answer->answer === YesNo::Yes)->count();
+        $no = $answers->count() - $yes;
+
+        return [
+            'answered' => $answers->count(),
+            'yes' => $yes,
+            'no' => $no,
+            'score' => $answers->isEmpty() ? 0 : (int) round($yes / $answers->count() * 100),
+        ];
     }
 
     /**

@@ -255,6 +255,9 @@ new class extends Component {
 
         $this->modal('delete-finding')->close();
 
+        // A checklist answer may have linked to this finding's photo.
+        $this->dispatch('finding-deleted');
+
         Flux::toast(variant: 'success', text: 'Finding deleted');
     }
 
@@ -528,6 +531,9 @@ new class extends Component {
             @enderror
         </div>
     @endif
+
+    {{-- Yes/no checklist (admin-managed categories) --}}
+    <livewire:walks.checklist :walk="$walk" :key="'checklist-'.$walk->id" />
 
     {{-- Findings list --}}
     @if ($findings->isNotEmpty())

@@ -127,6 +127,62 @@ new class extends Component {
         </div>
     </div>
 
+    {{-- Checklist results --}}
+    @php($checklist = $report->checklistTotals())
+    @if ($checklist['answered'] > 0)
+        <div class="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 break-inside-avoid">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <h2 class="flex items-center gap-2 text-base font-semibold text-zinc-800 dark:text-white">
+                    <flux:icon name="clipboard-document-check" class="size-4 text-teal-600 dark:text-teal-400" />
+                    Checklist results
+                </h2>
+                <div class="text-sm text-zinc-500 dark:text-zinc-400">
+                    <span class="text-2xl font-semibold text-zinc-900 dark:text-white">{{ $checklist['score'] }}%</span>
+                    passed &middot; {{ $checklist['yes'] }} Yes &middot; <span @class(['font-medium text-red-600 dark:text-red-400' => $checklist['no'] > 0])>{{ $checklist['no'] }} No</span>
+                </div>
+            </div>
+
+            <div class="mt-4 space-y-3">
+                @foreach ($report->checklistByCategory() as $group)
+                    <div>
+                        <div class="mb-1 flex items-center justify-between text-sm">
+                            <span class="font-medium text-zinc-700 dark:text-zinc-200">{{ $group['name'] }}</span>
+                            <span class="text-zinc-500 dark:text-zinc-400">{{ $group['yes'] }}/{{ $group['answered'] }} &middot; {{ $group['score'] }}%</span>
+                        </div>
+                        <div class="flex h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                            <div class="h-full bg-green-500" style="width: {{ $group['score'] }}%"></div>
+                            <div class="h-full bg-red-500" style="width: {{ 100 - $group['score'] }}%"></div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+
+            @if ($report->checklistFailures()->isNotEmpty())
+                <h3 class="mt-5 text-sm font-semibold text-zinc-800 dark:text-white">Needs attention</h3>
+                <ul class="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
+                    @foreach ($report->checklistFailures() as $failure)
+                        <li class="flex items-start gap-3 py-2.5">
+                            @if ($failure->finding?->thumbnail_url)
+                                <img src="{{ $failure->finding->thumbnail_url }}" alt="" class="size-12 shrink-0 rounded-md object-cover">
+                            @else
+                                <div class="flex size-12 shrink-0 items-center justify-center rounded-md bg-red-50 text-red-500 dark:bg-red-500/10">
+                                    <flux:icon name="x-circle" class="size-5" />
+                                </div>
+                            @endif
+                            <div class="min-w-0 flex-1">
+                                <div class="text-sm text-zinc-800 dark:text-zinc-100"><span class="text-zinc-500 dark:text-zinc-400">{{ $failure->category_name }}:</span> {{ $failure->question }}</div>
+                                @if ($failure->note)
+                                    <div class="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">{{ $failure->note }}</div>
+                                @endif
+                            </div>
+                            <flux:badge size="sm" color="red">No</flux:badge>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </div>
+    @endif
+
     @if ($report->findings->isNotEmpty())
         {{-- Category and severity --}}
         <div class="grid gap-6 md:grid-cols-2">

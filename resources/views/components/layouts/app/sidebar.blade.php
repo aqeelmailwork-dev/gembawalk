@@ -17,17 +17,23 @@
                     <flux:navlist.item icon="camera" :href="route('walks.index')" :current="request()->routeIs('walks.*')" wire:navigate>Walks</flux:navlist.item>
                 </flux:navlist.group>
 
-                @if (auth()->user()->canAny(['users.approve', 'users.manage', 'roles.manage']) || auth()->user()->hasRole('super_admin'))
+                @if (auth()->user()->canAny(['users.approve', 'users.manage', 'roles.manage', 'checklists.manage']) || auth()->user()->hasRole('super_admin'))
                     @php($pendingCount = \App\Models\User::pending()->count())
 
                     <flux:navlist.group heading="Administration" class="grid">
-                        <flux:navlist.item
-                            icon="users"
-                            :href="route('admin.users')"
-                            :current="request()->routeIs('admin.users')"
-                            wire:navigate
-                            :badge="($pendingCount > 0 && auth()->user()->can('users.approve')) ? (string) $pendingCount : null"
-                        >Users</flux:navlist.item>
+                        @if (auth()->user()->canAny(['users.approve', 'users.manage', 'roles.manage']))
+                            <flux:navlist.item
+                                icon="users"
+                                :href="route('admin.users')"
+                                :current="request()->routeIs('admin.users')"
+                                wire:navigate
+                                :badge="($pendingCount > 0 && auth()->user()->can('users.approve')) ? (string) $pendingCount : null"
+                            >Users</flux:navlist.item>
+                        @endif
+
+                        @can('checklists.manage')
+                            <flux:navlist.item icon="clipboard-document-check" :href="route('admin.checklists')" :current="request()->routeIs('admin.checklists')" wire:navigate>Checklists</flux:navlist.item>
+                        @endcan
 
                         @role("super_admin")
                             <flux:navlist.item icon="shield-check" :href="route('admin.access')" :current="request()->routeIs('admin.access')" wire:navigate>Access control</flux:navlist.item>
