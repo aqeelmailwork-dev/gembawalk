@@ -101,6 +101,20 @@ class GembaWalkPolicyTest extends TestCase
         $this->assertTrue($owner->can('complete', $walk));
     }
 
+    public function test_a_checklist_answer_is_enough_to_complete(): void
+    {
+        $owner = User::factory()->create();
+        $walk = GembaWalk::factory()->for($owner)->create();
+
+        $answer = new \App\Models\ChecklistAnswer(['answer' => 'yes']);
+        $answer->gemba_walk_id = $walk->id;
+        $answer->category_name = 'Office';
+        $answer->question = 'Desk area clean?';
+        $answer->save();
+
+        $this->assertTrue($owner->can('complete', $walk));
+    }
+
     public function test_export_report_requires_reports_export_permission(): void
     {
         $owner = User::factory()->create();

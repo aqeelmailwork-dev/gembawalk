@@ -27,7 +27,6 @@ new class extends Component {
 @php
     $report = $this->report();
     $walk = $report->walk;
-    $totals = $report->totals();
 
     $categoryBarColors = [
         'red' => 'bg-red-500',
@@ -93,44 +92,14 @@ new class extends Component {
         </div>
     </div>
 
-    {{-- KPI row --}}
-    <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 break-inside-avoid">
-            <div class="text-2xl font-semibold text-zinc-800 dark:text-white">{{ $totals['findings'] }}</div>
-            <div class="mt-0.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">Findings</div>
-        </div>
-
-        <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 break-inside-avoid">
-            <div class="text-2xl font-semibold {{ $totals['high'] > 0 ? 'text-red-600 dark:text-red-400' : 'text-zinc-800 dark:text-white' }}">{{ $totals['high'] }}</div>
-            <div class="mt-0.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">High severity</div>
-        </div>
-
-        <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 break-inside-avoid">
-            <div class="text-2xl font-semibold {{ $totals['open_actions'] > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-zinc-800 dark:text-white' }}">{{ $totals['open_actions'] }}</div>
-            <div class="mt-0.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">Open actions</div>
-        </div>
-
-        <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 break-inside-avoid">
-            <div class="text-2xl font-semibold {{ $totals['overdue'] > 0 ? 'text-red-600 dark:text-red-400' : 'text-zinc-800 dark:text-white' }}">{{ $totals['overdue'] }}</div>
-            <div class="mt-0.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">Overdue</div>
-        </div>
-    </div>
-
-    <div class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 break-inside-avoid">
-        <div class="flex items-center justify-between text-sm">
-            <span class="font-medium text-zinc-700 dark:text-zinc-200">Actions completed</span>
-            <span class="font-semibold text-zinc-800 dark:text-white">{{ $report->actionCompletionPercent() }}%</span>
-        </div>
-
-        <div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-            <div class="h-full rounded-full bg-teal-500 transition-all" style="width: {{ $report->actionCompletionPercent() }}%"></div>
-        </div>
-    </div>
-
-    {{-- Checklist results --}}
-    @php($checklist = $report->checklistTotals())
-    @if ($checklist['answered'] > 0)
-        <div class="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 break-inside-avoid">
+    {{-- Checklist results: every check with its answer, note and photos --}}
+    @php
+        $checklist = $report->checklistTotals();
+        $checklistSections = $report->checklistSections();
+        $notChecked = $checklistSections->sum('unanswered');
+    @endphp
+    @if ($checklistSections->isNotEmpty())
+        <div class="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 class="flex items-center gap-2 text-base font-semibold text-zinc-800 dark:text-white">
                     <flux:icon name="clipboard-document-check" class="size-4 text-teal-600 dark:text-teal-400" />
@@ -139,47 +108,55 @@ new class extends Component {
                 <div class="text-sm text-zinc-500 dark:text-zinc-400">
                     <span class="text-2xl font-semibold text-zinc-900 dark:text-white">{{ $checklist['score'] }}%</span>
                     passed &middot; {{ $checklist['yes'] }} Yes &middot; <span @class(['font-medium text-red-600 dark:text-red-400' => $checklist['no'] > 0])>{{ $checklist['no'] }} No</span>
+                    @if ($notChecked) &middot; {{ $notChecked }} not checked @endif
                 </div>
             </div>
 
-            <div class="mt-4 space-y-3">
-                @foreach ($report->checklistByCategory() as $group)
-                    <div>
-                        <div class="mb-1 flex items-center justify-between text-sm">
-                            <span class="font-medium text-zinc-700 dark:text-zinc-200">{{ $group['name'] }}</span>
-                            <span class="text-zinc-500 dark:text-zinc-400">{{ $group['yes'] }}/{{ $group['answered'] }} &middot; {{ $group['score'] }}%</span>
-                        </div>
-                        <div class="flex h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
-                            <div class="h-full bg-green-500" style="width: {{ $group['score'] }}%"></div>
-                            <div class="h-full bg-red-500" style="width: {{ 100 - $group['score'] }}%"></div>
-                        </div>
+            @foreach ($checklistSections as $section)
+                <div class="mt-6">
+                    <div class="mb-1 flex items-center justify-between text-sm">
+                        <span class="font-semibold text-zinc-800 dark:text-zinc-100">{{ $section['name'] }}</span>
+                        <span class="text-zinc-500 dark:text-zinc-400">{{ $section['yes'] }}/{{ $section['answered'] }} &middot; {{ $section['score'] }}%</span>
                     </div>
-                @endforeach
-            </div>
+                    <div class="flex h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                        @if ($section['answered'])
+                            <div class="h-full bg-green-500" style="width: {{ $section['score'] }}%"></div>
+                            <div class="h-full bg-red-500" style="width: {{ 100 - $section['score'] }}%"></div>
+                        @endif
+                    </div>
 
-            @if ($report->checklistFailures()->isNotEmpty())
-                <h3 class="mt-5 text-sm font-semibold text-zinc-800 dark:text-white">Needs attention</h3>
-                <ul class="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
-                    @foreach ($report->checklistFailures() as $failure)
-                        <li class="flex items-start gap-3 py-2.5">
-                            @if ($failure->finding?->thumbnail_url)
-                                <img src="{{ $failure->finding->thumbnail_url }}" alt="" class="size-12 shrink-0 rounded-md object-cover">
-                            @else
-                                <div class="flex size-12 shrink-0 items-center justify-center rounded-md bg-red-50 text-red-500 dark:bg-red-500/10">
-                                    <flux:icon name="x-circle" class="size-5" />
+                    <ul class="mt-3 divide-y divide-zinc-100 rounded-lg border border-zinc-100 dark:divide-zinc-800 dark:border-zinc-800">
+                        @foreach ($section['rows'] as $row)
+                            @php($answer = $row['answer'])
+                            <li @class(['break-inside-avoid p-3', 'bg-red-50/60 dark:bg-red-500/5' => $answer?->isNo()])>
+                                <div class="flex items-start gap-3">
+                                    <div class="min-w-0 flex-1">
+                                        <div class="text-sm font-medium text-zinc-800 dark:text-zinc-100">{{ $row['question'] }}</div>
+                                        @if ($answer?->note)
+                                            <div class="mt-0.5 text-sm text-zinc-600 dark:text-zinc-300">{{ $answer->note }}</div>
+                                        @endif
+                                    </div>
+                                    @if ($answer)
+                                        <flux:badge size="sm" :color="$answer->answer->color()">{{ $answer->answer->label() }}</flux:badge>
+                                    @else
+                                        <flux:badge size="sm" color="zinc">Not checked</flux:badge>
+                                    @endif
                                 </div>
-                            @endif
-                            <div class="min-w-0 flex-1">
-                                <div class="text-sm text-zinc-800 dark:text-zinc-100"><span class="text-zinc-500 dark:text-zinc-400">{{ $failure->category_name }}:</span> {{ $failure->question }}</div>
-                                @if ($failure->note)
-                                    <div class="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">{{ $failure->note }}</div>
+
+                                @if ($answer && $answer->photos->isNotEmpty())
+                                    <div class="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+                                        @foreach ($answer->photos as $photo)
+                                            <a href="{{ $photo->photo_url }}" target="_blank" rel="noopener" class="block">
+                                                <img src="{{ $photo->thumbnail_url }}" alt="{{ $row['question'] }} - photo {{ $loop->iteration }}" class="aspect-[4/3] w-full rounded-md object-cover ring-1 ring-black/5 dark:ring-white/10" loading="lazy">
+                                            </a>
+                                        @endforeach
+                                    </div>
                                 @endif
-                            </div>
-                            <flux:badge size="sm" color="red">No</flux:badge>
-                        </li>
-                    @endforeach
-                </ul>
-            @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endforeach
         </div>
     @endif
 
@@ -398,13 +375,6 @@ new class extends Component {
                 <p class="mt-2 text-sm text-zinc-400 dark:text-zinc-500">No actions were recorded.</p>
             @endif
         </div>
-    @else
-        <flux:card>
-            <div class="flex flex-col items-center justify-center gap-3 py-12 text-center">
-                <flux:icon name="photo" class="size-8 text-zinc-300 dark:text-zinc-600" />
-                <p class="text-sm text-zinc-500 dark:text-zinc-400">No findings were recorded on this walk.</p>
-            </div>
-        </flux:card>
     @endif
 </div>
 

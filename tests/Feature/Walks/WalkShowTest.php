@@ -36,102 +36,22 @@ class WalkShowTest extends TestCase
         return $user;
     }
 
-    // -- Photo capture -------------------------------------------------------
+    // -- Walk page layout ----------------------------------------------------
 
-    public function test_owner_gallery_upload_creates_two_findings_with_positions_and_files(): void
+    public function test_walk_page_has_no_free_form_photo_capture(): void
     {
         $owner = User::factory()->create();
         $walk = GembaWalk::factory()->for($owner)->create();
 
-        $this->actingAs($owner);
-
-        Volt::test('walks.show', ['walk' => $walk])
-            ->set('gallery', [
-                UploadedFile::fake()->image('a.jpg', 1200, 900),
-                UploadedFile::fake()->image('b.jpg', 1200, 900),
-            ])
-            ->assertHasNoErrors();
-
-        $this->assertSame(2, $walk->findings()->count());
-
-        $findings = $walk->findings()->orderBy('position')->get();
-
-        $this->assertSame([1, 2], $findings->pluck('position')->all());
-
-        foreach ($findings as $finding) {
-            Storage::disk('public')->assertExists($finding->photo_path);
-            Storage::disk('public')->assertExists($finding->thumbnail_path);
-        }
-    }
-
-    public function test_owner_capture_upload_creates_one_finding(): void
-    {
-        $owner = User::factory()->create();
-        $walk = GembaWalk::factory()->for($owner)->create();
-
-        $this->actingAs($owner);
-
-        Volt::test('walks.show', ['walk' => $walk])
-            ->set('capture', UploadedFile::fake()->image('capture.jpg', 1200, 900))
-            ->assertHasNoErrors();
-
-        $this->assertSame(1, $walk->findings()->count());
-    }
-
-    public function test_heic_upload_gives_a_validation_error_and_no_finding(): void
-    {
-        $owner = User::factory()->create();
-        $walk = GembaWalk::factory()->for($owner)->create();
-
-        $this->actingAs($owner);
-
-        Volt::test('walks.show', ['walk' => $walk])
-            ->set('capture', UploadedFile::fake()->create('x.heic', 100, 'image/heic'))
-            ->assertHasErrors('capture');
-
-        $this->assertSame(0, $walk->findings()->count());
-    }
-
-    public function test_13mb_image_is_rejected(): void
-    {
-        $owner = User::factory()->create();
-        $walk = GembaWalk::factory()->for($owner)->create();
-
-        $this->actingAs($owner);
-
-        Volt::test('walks.show', ['walk' => $walk])
-            ->set('capture', UploadedFile::fake()->create('big.jpg', 13312, 'image/jpeg'))
-            ->assertHasErrors('capture');
-
-        $this->assertSame(0, $walk->findings()->count());
-    }
-
-    public function test_completed_walk_hides_capture_zone(): void
-    {
-        $owner = User::factory()->create();
-        $walk = GembaWalk::factory()->completed()->for($owner)->create();
-
-        $this->actingAs($owner);
-
-        Volt::test('walks.show', ['walk' => $walk])
-            ->assertDontSee('Capture what you see');
-    }
-
-    public function test_admin_sees_page_but_not_capture_zone_and_upload_is_forbidden(): void
-    {
-        $admin = $this->admin();
-        $owner = User::factory()->create();
-        $walk = GembaWalk::factory()->for($owner)->create();
-
-        $this->actingAs($admin);
-
-        Volt::test('walks.show', ['walk' => $walk])
+        Volt::actingAs($owner)->test('walks.show', ['walk' => $walk])
             ->assertSee($walk->title)
             ->assertDontSee('Capture what you see')
-            ->set('capture', UploadedFile::fake()->image('admin.jpg', 100, 100))
-            ->assertForbidden();
+            ->assertDontSee('wire:model="capture"', false)
+            ->assertDontSee('wire:model="gallery"', false);
 
-        $this->assertSame(0, $walk->findings()->count());
+        Volt::actingAs($this->admin())->test('walks.show', ['walk' => $walk])
+            ->assertOk()
+            ->assertSee($walk->title);
     }
 
     // -- Action status toggle ------------------------------------------------

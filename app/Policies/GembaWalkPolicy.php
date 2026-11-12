@@ -44,7 +44,9 @@ class GembaWalkPolicy
      */
     public function complete(User $user, GembaWalk $walk): bool
     {
-        return $this->canEdit($user, $walk) && $walk->findings()->exists();
+        // Something must have been recorded: a photo finding or a checklist answer.
+        return $this->canEdit($user, $walk)
+            && ($walk->findings()->exists() || $walk->checklistAnswers()->exists());
     }
 
     /**

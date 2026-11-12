@@ -133,11 +133,27 @@ class WalkReportTest extends TestCase
             ->get(route('walks.report', $walk))
             ->assertOk()
             ->assertSee('Line 3 morning walk')
-            ->assertSee('Findings')
-            ->assertSee('High severity')
-            ->assertSee('Open actions')
-            ->assertSee('Overdue')
-            ->assertSee('Actions completed');
+            ->assertSee('Findings by category')
+            ->assertDontSee('Actions completed');
+    }
+
+    public function test_checklist_only_walk_report_has_no_empty_findings_blocks(): void
+    {
+        $owner = $this->user();
+        $walk = GembaWalk::factory()->for($owner)->create();
+
+        $this->actingAs($owner)
+            ->get(route('walks.report', $walk))
+            ->assertOk()
+            ->assertDontSee('High severity')
+            ->assertDontSee('Open actions')
+            ->assertDontSee('No findings were recorded on this walk.');
+
+        $this->actingAs($owner)
+            ->get(route('walks.show', $walk))
+            ->assertOk()
+            ->assertDontSee('High severity')
+            ->assertDontSee('Open actions');
     }
 
     public function test_admin_can_view_any_report_page(): void
