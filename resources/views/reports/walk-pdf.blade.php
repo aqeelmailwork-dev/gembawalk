@@ -73,6 +73,52 @@
         </tr>
     </table>
 
+    {{-- Checklist results --}}
+    @php($checklist = $report->checklistTotals())
+    @if ($checklist['answered'] > 0)
+        <div style="page-break-inside: avoid;">
+            <h2>Checklist results &nbsp;<span style="color: #27272a;">{{ $checklist['score'] }}% passed</span> <span class="muted" style="font-size: 10px; font-weight: normal;">({{ $checklist['yes'] }} Yes, {{ $checklist['no'] }} No)</span></h2>
+            <table width="100%" cellspacing="0" cellpadding="3">
+                @foreach ($report->checklistByCategory() as $group)
+                    <tr>
+                        <td width="28%" style="font-size: 10px;">{{ $group['name'] }}</td>
+                        <td width="56%">
+                            <div style="width: 100%; height: 8px; background: #ef4444; border-radius: 4px;">
+                                <div style="width: {{ $group['score'] }}%; height: 8px; background: #22c55e; border-radius: 4px;"></div>
+                            </div>
+                        </td>
+                        <td width="16%" align="right" style="font-size: 10px;">{{ $group['yes'] }}/{{ $group['answered'] }} &middot; {{ $group['score'] }}%</td>
+                    </tr>
+                @endforeach
+            </table>
+        </div>
+
+        @if ($report->checklistFailures()->isNotEmpty())
+            <div style="page-break-inside: avoid;">
+                <div style="font-size: 11px; font-weight: bold; margin: 12px 0 4px;">Needs attention</div>
+                <table width="100%" cellspacing="0" cellpadding="4">
+                    @foreach ($report->checklistFailures() as $failure)
+                        @php($thumb = $failure->finding ? $report->thumbnailDataUri($failure->finding) : null)
+                        <tr style="page-break-inside: avoid; border-bottom: 1px solid #f4f4f5;">
+                            <td width="52" valign="top">
+                                @if ($thumb)
+                                    <img src="{{ $thumb }}" style="width: 48px; height: 36px; border-radius: 3px;">
+                                @endif
+                            </td>
+                            <td valign="top" style="font-size: 10px;">
+                                <span class="muted">{{ $failure->category_name }}:</span> {{ $failure->question }}
+                                @if ($failure->note)
+                                    <div class="muted" style="margin-top: 2px;">{{ $failure->note }}</div>
+                                @endif
+                            </td>
+                            <td width="30" valign="top" align="right"><span class="badge" style="background: #ef4444;">No</span></td>
+                        </tr>
+                    @endforeach
+                </table>
+            </div>
+        @endif
+    @endif
+
     @if ($report->findings->isNotEmpty())
         {{-- Category breakdown --}}
         <div style="page-break-inside: avoid;">

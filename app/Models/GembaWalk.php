@@ -60,6 +60,14 @@ class GembaWalk extends Model
     }
 
     /**
+     * The yes/no checklist answers given during the walk.
+     */
+    public function checklistAnswers(): HasMany
+    {
+        return $this->hasMany(ChecklistAnswer::class);
+    }
+
+    /**
      * Whether the walk is still a draft.
      */
     public function isDraft(): bool

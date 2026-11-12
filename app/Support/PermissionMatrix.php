@@ -24,6 +24,7 @@ class PermissionMatrix
                 Permission::UsersManage,
                 Permission::WalksViewAll,
                 Permission::ReportsExport,
+                Permission::ChecklistsManage,
             ],
             Role::User->value => [
                 Permission::ReportsExport,
